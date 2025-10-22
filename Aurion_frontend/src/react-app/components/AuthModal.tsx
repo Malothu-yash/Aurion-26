@@ -670,9 +670,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
               <h2 className="text-3xl font-bold text-white mb-2">
                 Verify OTP
               </h2>
-              <p className="text-gray-300 mb-8">
+              <p className="text-gray-300 mb-2">
                 Enter the 4-digit code sent to <br />
                 <span className="font-semibold text-white">{email}</span>
+              </p>
+              <p className="text-yellow-300 text-sm mb-6">
+                If you don't see the OTP email in your inbox, please check your <b>spam</b> or <b>promotions</b> folder.
               </p>
 
               <div className="flex justify-center space-x-3 mb-6">
