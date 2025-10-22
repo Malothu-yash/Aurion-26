@@ -2,12 +2,10 @@
 # app/services/memory.py
 # This file handles all communication with our memory databases.
 
-import redis.asyncio as redis # Async redis client
+import redis.asyncio as redis  # Async redis client
 from pinecone import Pinecone, ServerlessSpec
-import redis.asyncio as redis # Make sure this import is at the top
 from app.core.config import settings
 import json
-from app.core.config import settings
 from neo4j import AsyncGraphDatabase
 import asyncio
 
@@ -63,8 +61,10 @@ async def get_chat_history(conversation_id: str, limit: int = 10) -> list[dict]:
     Gets the most recent chat history for a conversation from Redis.
     We store history as a list of JSON-encoded messages.
     """
+    # Be resilient in environments without Redis
     if not redis_pool:
-        raise ValueError("Redis pool not initialized.")
+        # Return empty history rather than raising to avoid 500s
+        return []
     
     key = f"chat_history:{conversation_id}"
     try:
@@ -81,8 +81,10 @@ async def add_to_chat_history(conversation_id: str, role: str, text: str):
     """
     Adds a new message to the chat history in Redis.
     """
+    # Be resilient in environments without Redis
     if not redis_pool:
-        raise ValueError("Redis pool not initialized.")
+        # No-op if Redis isn't configured
+        return
     
     key = f"chat_history:{conversation_id}"
     message = json.dumps({"role": role, "content": text})
@@ -138,7 +140,8 @@ async def upsert_to_pinecone(vector_id: str, vector: list[float], metadata: dict
     Upserts (updates or inserts) a vector into our Pinecone index.
     """
     if not pinecone_index:
-        raise ValueError("Pinecone index not initialized.")
+        # No-op if Pinecone isn't configured
+        return
     
     try:
         # Pinecone's async upsert is a bit different,
@@ -162,7 +165,8 @@ async def query_pinecone(vector: list[float], top_k: int = 3) -> list[dict]:
     Queries Pinecone to find the most similar memories.
     """
     if not pinecone_index:
-        raise ValueError("Pinecone index not initialized.")
+        # Return no matches if Pinecone isn't configured
+        return []
         
     try:
         results = pinecone_index.query(

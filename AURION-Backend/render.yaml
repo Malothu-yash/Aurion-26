@@ -5,7 +5,7 @@ services:
     env: python
     region: oregon # Choose your preferred region
     plan: free # or starter for production
-    branch: improve/ui-backend # Your git branch
+  branch: main # Your git branch
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /
