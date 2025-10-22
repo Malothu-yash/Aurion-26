@@ -4,7 +4,8 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-const cors = require('cors');
+import logging  # Added for debugging CORS
+
 # Import our settings instance from the config file
 from app.core.config import settings
 
@@ -16,20 +17,20 @@ from app.services.memory import (
     init_neo4j,
     close_neo4j
 )
-from app.services.tools import scheduler, run_daily_briefing, run_memory_consolidation # Import scheduler and jobs
+from app.services.tools import scheduler, run_daily_briefing, run_memory_consolidation
 from app.core.monitor import log_event
-from app.admin.realtime import start_background_tasks  # Real-time updates for admin
-
-
-# --- IMPORT OUR NEW CHAT ROUTER ---
+from app.admin.realtime import start_background_tasks
 from app.orchestrator import chat_router, handle_mini_agent_request
-from app.auth_flow import auth_router  # Import auth router for Google OAuth
-from app.auth_endpoints import router as auth_mongo_router  # MongoDB-based auth
-from app.auth_db import init_mongodb, close_mongodb  # MongoDB connection
-from app.admin.routes import router as admin_router  # Admin dashboard routes
+from app.auth_flow import auth_router
+from app.auth_endpoints import router as auth_mongo_router
+from app.auth_db import init_mongodb, close_mongodb
+from app.admin.routes import router as admin_router
+
+# Set up logging for debugging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --- Application Lifespan ---
-# This function runs when our app starts up
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -39,97 +40,97 @@ async def lifespan(app: FastAPI):
       - Initialize our AI clients (they already init on import)
       - Start our APScheduler for reminders
     """
-    print("--- AURION Backend is starting up... ---")
+    logger.info("--- AURION Backend is starting up... ---")
     try:
         await log_event("startup", {"component": "backend"})
     except Exception:
-        pass
+        logger.error("Failed to log startup event")
     
     # --- CONNECT TO DATABASES ---
-    await init_redis_pool() # Connect to Redis
-    init_pinecone()         # Connect to Pinecone
-    init_neo4j()            # Connect to Neo4j (Semantic Memory)
+    await init_redis_pool()  # Connect to Redis
+    init_pinecone()          # Connect to Pinecone
+    init_neo4j()             # Connect to Neo4j (Semantic Memory)
     
     # MongoDB with proper error handling
     mongodb_success = await init_mongodb()
     if not mongodb_success:
-        print("⚠️ MongoDB connection failed - session operations will be limited")
+        logger.warning("⚠️ MongoDB connection failed - session operations will be limited")
     else:
-        print("✅ All databases connected successfully")
+        logger.info("✅ All databases connected successfully")
     
     # --- START SCHEDULER & ADD JOBS ---
     try:
         scheduler.start()
         
         # --- ADD DAILY BRIEFING JOB ---
-        # Add the daily briefing job. Testing with a specific user.
-        # In production, you'd pull all users from a database.
         scheduler.add_job(
             run_daily_briefing,
-            'cron', # This means run on a schedule
-            hour=8, minute=0, # Run at 8:00 AM every day
-            args=["semantic-test-123", "rathodvamshi369@gmail.com"] # Update with your email
+            'cron',
+            hour=8, minute=0,
+            args=["semantic-test-123", "rathodvamshi369@gmail.com"]
         )
         
         # --- ADD WEEKLY MEMORY CONSOLIDATION JOB ---
-        # This is AURION's "sleep cycle" - it finds patterns in your conversations
         scheduler.add_job(
             run_memory_consolidation,
             'cron',
-            day_of_week='sun',  # Run every Sunday
-            hour=3, minute=0,    # At 3:00 AM
+            day_of_week='sun',
+            hour=3, minute=0,
             args=["semantic-test-123"]
         )
         
-        print("Task scheduler started successfully.")
-        print("Daily briefing scheduled for 8:00 AM every day.")
-        print("Weekly memory consolidation scheduled for Sundays at 3:00 AM.")
+        logger.info("Task scheduler started successfully.")
+        logger.info("Daily briefing scheduled for 8:00 AM every day.")
+        logger.info("Weekly memory consolidation scheduled for Sundays at 3:00 AM.")
     except Exception as e:
-        print(f"Error starting scheduler: {e}")
+        logger.error(f"Error starting scheduler: {e}")
     
     # --- START REAL-TIME BACKGROUND TASKS ---
     try:
         await start_background_tasks()
-        print("Real-time admin monitoring started.")
+        logger.info("Real-time admin monitoring started.")
     except Exception as e:
-        print(f"Error starting real-time tasks: {e}")
+        logger.error(f"Error starting real-time tasks: {e}")
     
-    yield # The app is now running
+    yield  # The app is now running
     
     # --- Shutdown ---
-    print("--- AURION Backend is shutting down... ---")
+    logger.info("--- AURION Backend is shutting down... ---")
     try:
         await log_event("shutdown", {"component": "backend"})
     except Exception:
-        pass
-    await close_redis_pool() # Disconnect from Redis
-    await close_neo4j()      # Disconnect from Neo4j
-    await close_mongodb()    # Disconnect from MongoDB
-    scheduler.shutdown()     # Stop the scheduler
-    print("Task scheduler shut down.")
-
+        logger.error("Failed to log shutdown event")
+    await close_redis_pool()  # Disconnect from Redis
+    await close_neo4j()       # Disconnect from Neo4j
+    await close_mongodb()     # Disconnect from MongoDB
+    scheduler.shutdown()       # Stop the scheduler
+    logger.info("Task scheduler shut down.")
 
 # Create the main FastAPI application instance
 app = FastAPI(
-    title=settings.PROJECT_NAME,  # Project name from our .env
-    lifespan=lifespan             # The startup/shutdown function
+    title=settings.PROJECT_NAME,
+    lifespan=lifespan
 )
 
 # --- CORS Configuration ---
 # Allow frontend to communicate with backend
-# Parse ALLOWED_ORIGINS from comma-separated string
 allowed_origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",")]
+# Explicitly add frontend origin for debugging
+allowed_origins.append("https://aurion-2w2m89dqc-rathods-projects-2f0dc844.vercel.app")
+# Remove duplicates and ensure no empty strings
+allowed_origins = list(set([origin for origin in allowed_origins if origin]))
+
+logger.info(f"CORS allowed origins: {allowed_origins}")  # Log allowed origins for debugging
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,  # Use environment variable
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods (GET, POST, OPTIONS, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly list methods
+    allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],  # Explicitly list headers
 )
 
 # --- API Endpoints ---
-# We create a router to keep our endpoints organized
 main_router = APIRouter()
 
 @main_router.get("/")
@@ -143,31 +144,17 @@ async def get_root():
         "status": "ok"
     }
 
-# Tell the main app to use the routes from our router
 app.include_router(main_router)
-
-# Register the chat router with the /api/v1 prefix
 app.include_router(chat_router, prefix="/api/v1")
-
-# Register the auth router for Google OAuth
 app.include_router(auth_router, prefix="/api/v1")
-
-# Register MongoDB-based authentication router
 app.include_router(auth_mongo_router)
-
-# Register Admin dashboard router
 app.include_router(admin_router)
-
-# Register Session management router
 from app.api.sessions import session_router
 app.include_router(session_router)
-
-# Register Text Selection API router
 from app.text_selection_api import text_selection_router
 app.include_router(text_selection_router, prefix="/api/v1")
 
-# --- NEW: Mini Agent Router ---
-# This is the dedicated endpoint for the Inline Mini Agent
+# --- Mini Agent Router ---
 from fastapi import BackgroundTasks
 from sse_starlette.sse import EventSourceResponse
 from app.models.schemas import MiniAgentRequest
@@ -199,7 +186,7 @@ async def test_calendar_endpoint(user_id: str = "test-user-123"):
     import datetime
     
     try:
-        print(f"Testing calendar for user: {user_id}")
+        logger.info(f"Testing calendar for user: {user_id}")
         
         # Get calendar service
         service = await get_calendar_service_for_user(user_id)
@@ -244,6 +231,7 @@ async def test_calendar_endpoint(user_id: str = "test-user-123"):
         
     except Exception as e:
         import traceback
+        logger.error(f"Calendar test error: {str(e)}")
         return {
             "status": "error",
             "message": str(e),

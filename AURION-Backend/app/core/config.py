@@ -1,4 +1,3 @@
-
 # app/core/config.py
 # This file reads all our secrets from the .env file
 # and makes them available to our application.
@@ -74,8 +73,9 @@ class Settings(pydantic_settings.BaseSettings):
     # --- Project Settings ---
     PROJECT_NAME: str = "AURION AI"
     BASE_URL: str = "http://127.0.0.1:8000"  # Server base URL for email links
-    FRONTEND_URL: str = "http://localhost:5173"  # Frontend URL for CORS
-    ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"  # Comma-separated CORS origins
+    FRONTEND_URL: str = "http://localhost:5173"  # Frontend URL for local development
+    # Updated to include production frontend URL for CORS
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,https://aurion-2w2m89dqc-rathods-projects-2f0dc844.vercel.app"
     
     # --- JWT Settings (for Admin Authentication) ---
     JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
@@ -86,7 +86,6 @@ class Settings(pydantic_settings.BaseSettings):
     # Resolve to the AURION-Backend/.env regardless of working directory
     _env_path = str(Path(__file__).resolve().parents[2] / ".env")
     model_config = pydantic_settings.SettingsConfigDict(env_file=_env_path)
-
 
 # Create a single instance of the settings that our whole app can import
 # We will import `settings` from this file in other parts of our code
@@ -155,6 +154,7 @@ try:
     print(f"  ✓ SENDGRID_API_KEY: {mask(settings.SENDGRID_API_KEY)}  (from: {settings.SENDER_EMAIL})")
     print(f"  ✓ SMTP MAIL_FROM: {settings.MAIL_FROM}")
     print(f"  ✓ NEO4J_URI: {'set' if settings.NEO4J_URI else '<missing>'}")
+    print(f"  ✓ ALLOWED_ORIGINS: {settings.ALLOWED_ORIGINS}")  # Added to debug CORS
 
     # Warnings for common misconfigurations
     if not (settings.GOOGLE_API_KEY and settings.GOOGLE_SEARCH_CX_ID):
