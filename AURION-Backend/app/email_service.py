@@ -1,6 +1,6 @@
 # app/email_service.py
 # Email service for sending OTPs using Gmail SMTP or other providers
-
+from pydantic import BaseModel, SecretStr
 try:
     from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
     _FASTAPI_MAIL_AVAILABLE = True
@@ -11,21 +11,22 @@ except Exception as e:
     ConnectionConfig = None  # type: ignore
     MessageType = None  # type: ignore
     _FASTAPI_MAIL_AVAILABLE = False
+
 from app.core.config import settings
 from typing import List
 
 # Check if email is configured
 EMAIL_ENABLED = (
     _FASTAPI_MAIL_AVAILABLE and
-    settings.MAIL_USERNAME != "your_email@gmail.com" and 
-    settings.MAIL_PASSWORD != "your_app_password"
+    bool(settings.MAIL_USERNAME) and 
+    bool(settings.MAIL_PASSWORD)
 )
 
 if EMAIL_ENABLED:
     # Email configuration
     conf = ConnectionConfig(
         MAIL_USERNAME=settings.MAIL_USERNAME,
-        MAIL_PASSWORD=settings.MAIL_PASSWORD,
+        MAIL_PASSWORD=SecretStr(settings.MAIL_PASSWORD),  # wrap the password
         MAIL_FROM=settings.MAIL_FROM,
         MAIL_PORT=settings.MAIL_PORT,
         MAIL_SERVER=settings.MAIL_SERVER,
@@ -35,13 +36,14 @@ if EMAIL_ENABLED:
         USE_CREDENTIALS=True,
         VALIDATE_CERTS=True
     )
-    
+
     # Initialize FastMail
     fm = FastMail(conf)
     print("✅ Email service configured successfully")
 else:
     fm = None
     print("⚠️  Email not configured - OTPs will be printed to console")
+
 
 async def send_otp_email(email: str, otp: str, purpose: str = "signup"):
     """
@@ -203,7 +205,7 @@ async def send_otp_email(email: str, otp: str, purpose: str = "signup"):
     </body>
     </html>
     """
-    
+
     # Plain text fallback
     text = f"""
     {greeting}
@@ -219,7 +221,7 @@ async def send_otp_email(email: str, otp: str, purpose: str = "signup"):
     ---
     AURION AI - Your Intelligent Assistant
     """
-    
+
     # If email is not configured, print to console (DEV MODE)
     if not EMAIL_ENABLED or fm is None:
         print(f"\n{'='*60}")
@@ -232,7 +234,7 @@ async def send_otp_email(email: str, otp: str, purpose: str = "signup"):
         print(f"\n  ⏰ Expires in 60 seconds")
         print(f"{'='*60}\n")
         return True
-    
+
     try:
         message = MessageSchema(
             subject=subject,
@@ -241,25 +243,26 @@ async def send_otp_email(email: str, otp: str, purpose: str = "signup"):
             html=html,
             subtype=MessageType.html
         )
-        
+
         await fm.send_message(message)
         print(f"✅ OTP email sent successfully to {email}")
         return True
-        
+
     except Exception as e:
         print(f"❌ Failed to send OTP email to {email}: {e}")
         # Fallback to console
         print(f"🔐 FALLBACK - OTP for {email}: {otp}")
         return False
 
+
 async def send_welcome_email(email: str, display_name: str):
     """Send welcome email after successful signup"""
-    
+
     # Skip if email not configured
     if not EMAIL_ENABLED or fm is None:
         print(f"🎉 Welcome {display_name}! (Email skipped - dev mode)")
         return True
-    
+
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -347,7 +350,7 @@ async def send_welcome_email(email: str, display_name: str):
     </body>
     </html>
     """
-    
+
     try:
         message = MessageSchema(
             subject="🎉 Welcome to AURION AI!",
@@ -356,11 +359,11 @@ async def send_welcome_email(email: str, display_name: str):
             html=html,
             subtype=MessageType.html
         )
-        
+
         await fm.send_message(message)
         print(f"✅ Welcome email sent to {email}")
         return True
-        
+
     except Exception as e:
         print(f"❌ Failed to send welcome email: {e}")
         return False

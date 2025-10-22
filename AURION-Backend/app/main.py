@@ -4,7 +4,7 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-
+const cors = require('cors');
 # Import our settings instance from the config file
 from app.core.config import settings
 
