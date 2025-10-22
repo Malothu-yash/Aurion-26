@@ -6,6 +6,11 @@ import pydantic_settings
 import pydantic
 import os
 from pathlib import Path
+import logging  # Added for debugging email settings
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Settings(pydantic_settings.BaseSettings):
     """
@@ -51,7 +56,7 @@ class Settings(pydantic_settings.BaseSettings):
 
     # --- SMTP EMAIL CONFIGURATION (for OTP emails) ---
     MAIL_USERNAME: str | None = None  # Gmail address
-    MAIL_PASSWORD: str | None = None  # Gmail App Password
+    MAIL_PASSWORD: pydantic.SecretStr | None = None  # Use SecretStr for security
     MAIL_FROM: str | None = None
     MAIL_PORT: int = 587
     MAIL_SERVER: str = "smtp.gmail.com"
@@ -74,7 +79,7 @@ class Settings(pydantic_settings.BaseSettings):
     PROJECT_NAME: str = "AURION AI"
     BASE_URL: str = "http://127.0.0.1:8000"  # Server base URL for email links
     FRONTEND_URL: str = "http://localhost:5173"  # Frontend URL for local development
-    # Updated to include production frontend URL for CORS
+    # CORS origins for frontend
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,https://aurion-2w2m89dqc-rathods-projects-2f0dc844.vercel.app"
     
     # --- JWT Settings (for Admin Authentication) ---
@@ -84,11 +89,13 @@ class Settings(pydantic_settings.BaseSettings):
     
     # This tells pydantic to load variables from the backend .env with an absolute path
     # Resolve to the AURION-Backend/.env regardless of working directory
-    _env_path = str(Path(__file__).resolve().parents[2] / ".env")
-    model_config = pydantic_settings.SettingsConfigDict(env_file=_env_path)
+    _env_file = str(Path(__file__).resolve().parents[2] / ".env")
+    model_config = pydantic_settings.SettingsConfigDict(
+        env_file=_env_file,
+        env_file_encoding='utf-8'
+    )
 
 # Create a single instance of the settings that our whole app can import
-# We will import `settings` from this file in other parts of our code
 try:
     settings = Settings()
 
@@ -129,45 +136,48 @@ try:
     if not settings.PINECONE_INDEX_NAME:
         settings.PINECONE_INDEX_NAME = "aurion_index"
 
-    print("Settings loaded successfully!")
+    logger.info("Settings loaded successfully!")
+    logger.info(f"ALLOWED_ORIGINS: {settings.ALLOWED_ORIGINS}")
+    logger.info(f"SMTP Config: server={settings.MAIL_SERVER}, port={settings.MAIL_PORT}, "
+                f"username={settings.MAIL_USERNAME}, from={settings.MAIL_FROM}")
+    logger.info(f"SendGrid Config: from={settings.SENDER_EMAIL}, api_key={'set' if settings.SENDGRID_API_KEY else '<missing>'}")
 
     # Debug: Verify API keys are loaded (mask to 4 chars)
     def mask(val: str | None) -> str:
         return (val[:4] + "***") if val else "<missing>"
 
-    print("-- API/Service Configuration --")
-    print(f"  ✓ GROQ_API_KEY: {mask(settings.GROQ_API_KEY)}")
-    print(f"  ✓ GEMINI_API_KEY: {mask(settings.GEMINI_API_KEY)}")
-    print(f"  ✓ OPENAI_API_KEY: {mask(settings.OPENAI_API_KEY)}")
-    print(f"  ✓ OPENROUTER_API_KEY: {mask(settings.OPENROUTER_API_KEY)}")
-    print(f"  ✓ COHERE_API_KEY: {mask(settings.COHERE_API_KEY)}")
-    print(f"  ✓ EDENAI_API_KEY: {mask(settings.EDENAI_API_KEY)}")
-    print(f"  ✓ MISTRAL_API_KEY: {mask(settings.MISTRAL_API_KEY)}")
-    print(f"  ✓ GOOGLE_API_KEY: {mask(settings.GOOGLE_API_KEY)}")
-    print(f"  ✓ GOOGLE_SEARCH_CX_ID: {settings.GOOGLE_SEARCH_CX_ID or '<missing>'}")
-    print(f"  ✓ SERPAPI_KEY: {mask(settings.SERPAPI_KEY)}")
-    print(f"  ✓ ZENSERP_API_KEY: {mask(settings.ZENSERP_API_KEY)}")
-    print(f"  ✓ YOUTUBE_API_KEY: {mask(settings.YOUTUBE_API_KEY)}")
-    print(f"  ✓ WEATHER_API_KEY: {mask(settings.WEATHER_API_KEY)}")
-    print(f"  ✓ PINECONE_API_KEY: {mask(settings.PINECONE_API_KEY)}  (index: {settings.PINECONE_INDEX_NAME})")
-    print(f"  ✓ REDIS_URL: {bool(settings.REDIS_URL)}  (host: {settings.REDIS_HOST}, port: {settings.REDIS_PORT})")
-    print(f"  ✓ SENDGRID_API_KEY: {mask(settings.SENDGRID_API_KEY)}  (from: {settings.SENDER_EMAIL})")
-    print(f"  ✓ SMTP MAIL_FROM: {settings.MAIL_FROM}")
-    print(f"  ✓ NEO4J_URI: {'set' if settings.NEO4J_URI else '<missing>'}")
-    print(f"  ✓ ALLOWED_ORIGINS: {settings.ALLOWED_ORIGINS}")  # Added to debug CORS
+    logger.info("-- API/Service Configuration --")
+    logger.info(f"  ✓ GROQ_API_KEY: {mask(settings.GROQ_API_KEY)}")
+    logger.info(f"  ✓ GEMINI_API_KEY: {mask(settings.GEMINI_API_KEY)}")
+    logger.info(f"  ✓ OPENAI_API_KEY: {mask(settings.OPENAI_API_KEY)}")
+    logger.info(f"  ✓ OPENROUTER_API_KEY: {mask(settings.OPENROUTER_API_KEY)}")
+    logger.info(f"  ✓ COHERE_API_KEY: {mask(settings.COHERE_API_KEY)}")
+    logger.info(f"  ✓ EDENAI_API_KEY: {mask(settings.EDENAI_API_KEY)}")
+    logger.info(f"  ✓ MISTRAL_API_KEY: {mask(settings.MISTRAL_API_KEY)}")
+    logger.info(f"  ✓ GOOGLE_API_KEY: {mask(settings.GOOGLE_API_KEY)}")
+    logger.info(f"  ✓ GOOGLE_SEARCH_CX_ID: {settings.GOOGLE_SEARCH_CX_ID or '<missing>'}")
+    logger.info(f"  ✓ SERPAPI_KEY: {mask(settings.SERPAPI_KEY)}")
+    logger.info(f"  ✓ ZENSERP_API_KEY: {mask(settings.ZENSERP_API_KEY)}")
+    logger.info(f"  ✓ YOUTUBE_API_KEY: {mask(settings.YOUTUBE_API_KEY)}")
+    logger.info(f"  ✓ WEATHER_API_KEY: {mask(settings.WEATHER_API_KEY)}")
+    logger.info(f"  ✓ PINECONE_API_KEY: {mask(settings.PINECONE_API_KEY)}  (index: {settings.PINECONE_INDEX_NAME})")
+    logger.info(f"  ✓ REDIS_URL: {bool(settings.REDIS_URL)}  (host: {settings.REDIS_HOST}, port: {settings.REDIS_PORT})")
+    logger.info(f"  ✓ SENDGRID_API_KEY: {mask(settings.SENDGRID_API_KEY)}  (from: {settings.SENDER_EMAIL})")
+    logger.info(f"  ✓ SMTP MAIL_FROM: {settings.MAIL_FROM}")
+    logger.info(f"  ✓ NEO4J_URI: {'set' if settings.NEO4J_URI else '<missing>'}")
 
     # Warnings for common misconfigurations
     if not (settings.GOOGLE_API_KEY and settings.GOOGLE_SEARCH_CX_ID):
-        print("  ! Web search: Needs GOOGLE_API_KEY and GOOGLE_SEARCH_CX_ID (or SERPAPI_KEY as fallback)")
+        logger.warning("Web search: Needs GOOGLE_API_KEY and GOOGLE_SEARCH_CX_ID (or SERPAPI_KEY as fallback)")
     if not (settings.GEMINI_API_KEY or settings.FRIEND_GEMINI_KEY):
-        print("  ! Gemini: No API key found (GEMINI_API_KEY or GOOGLE_GEMINI_API_KEY)")
+        logger.warning("Gemini: No API key found (GEMINI_API_KEY or GOOGLE_GEMINI_API_KEY)")
     if not (settings.GROQ_API_KEY or settings.FRIEND_GROQ_KEY):
-        print("  ! Groq: No API key found (GROQ_API_KEY)")
+        logger.warning("Groq: No API key found (GROQ_API_KEY)")
     if not settings.SENDER_EMAIL and not settings.MAIL_FROM:
-        print("  ! Email: Set SENDER_EMAIL (SendGrid) or MAIL_FROM (SMTP)")
+        logger.warning("Email: Set SENDER_EMAIL (SendGrid) or MAIL_FROM (SMTP)")
+    if not settings.MAIL_USERNAME or not settings.MAIL_PASSWORD:
+        logger.warning("SMTP Email: MAIL_USERNAME and MAIL_PASSWORD must be set for email functionality")
     
 except pydantic.ValidationError as e:
-    print("--- FATAL ERROR: Could not load .env settings. ---")
-    print(e)
-    # Exit if settings are missing - the app can't run.
+    logger.error(f"FATAL ERROR: Could not load .env settings: {e}")
     exit(1)

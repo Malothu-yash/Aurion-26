@@ -24,6 +24,7 @@ pymongo                # MongoDB driver
 bcrypt                 # Password hashing
 
 # Tools & Utilities
+pydantic>=2.7.0,<3.0.0 # Pydantic for settings and SecretStr (pinned for compatibility)
 pydantic-settings      # For loading .env file
 python-dotenv          # Manages .env variables
 google-api-python-client # For YouTube/Search
@@ -32,7 +33,7 @@ google-auth-oauthlib   # OAuth flow handling
 google-auth-httplib2   # HTTP library for Google Auth
 dateparser             # For parsing "tomorrow at 5pm"
 apscheduler            # For scheduling reminders
-fastapi-mail           # For sending emails
+fastapi-mail>=1.4.0,<2.0.0 # For sending emails (pinned for compatibility)
 jinja2>=3.1,<3.2      # Templating engine required by fastapi-mail
 aiosmtplib>=2.0        # SMTP client used by fastapi-mail
 numpy                  # For fallback embeddings

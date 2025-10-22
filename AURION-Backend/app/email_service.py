@@ -1,23 +1,17 @@
 # app/email_service.py
 # Email service for sending OTPs using Gmail SMTP or other providers
-from pydantic import BaseModel, SecretStr
-try:
-    from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-    _FASTAPI_MAIL_AVAILABLE = True
-except Exception as e:
-    print(f"⚠️ fastapi-mail import failed in email_service, email features disabled. Reason: {e}")
-    FastMail = None  # type: ignore
-    MessageSchema = None  # type: ignore
-    ConnectionConfig = None  # type: ignore
-    MessageType = None  # type: ignore
-    _FASTAPI_MAIL_AVAILABLE = False
 
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+from pydantic import EmailStr
 from app.core.config import settings
+import logging
 from typing import List
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Check if email is configured
 EMAIL_ENABLED = (
-    _FASTAPI_MAIL_AVAILABLE and
     bool(settings.MAIL_USERNAME) and 
     bool(settings.MAIL_PASSWORD)
 )
@@ -26,7 +20,7 @@ if EMAIL_ENABLED:
     # Email configuration
     conf = ConnectionConfig(
         MAIL_USERNAME=settings.MAIL_USERNAME,
-        MAIL_PASSWORD=SecretStr(settings.MAIL_PASSWORD),  # wrap the password
+        MAIL_PASSWORD=settings.MAIL_PASSWORD,  # Already SecretStr from config
         MAIL_FROM=settings.MAIL_FROM,
         MAIL_PORT=settings.MAIL_PORT,
         MAIL_SERVER=settings.MAIL_SERVER,
@@ -39,13 +33,12 @@ if EMAIL_ENABLED:
 
     # Initialize FastMail
     fm = FastMail(conf)
-    print("✅ Email service configured successfully")
+    logger.info("✅ Email service configured successfully")
 else:
     fm = None
-    print("⚠️  Email not configured - OTPs will be printed to console")
+    logger.warning("⚠️ Email not configured - OTPs will be printed to console")
 
-
-async def send_otp_email(email: str, otp: str, purpose: str = "signup"):
+async def send_otp_email(email: EmailStr, otp: str, purpose: str = "signup"):
     """
     Send OTP email to user
     
@@ -224,15 +217,15 @@ async def send_otp_email(email: str, otp: str, purpose: str = "signup"):
 
     # If email is not configured, print to console (DEV MODE)
     if not EMAIL_ENABLED or fm is None:
-        print(f"\n{'='*60}")
-        print(f"🔐 DEV MODE - OTP EMAIL")
-        print(f"{'='*60}")
-        print(f"To: {email}")
-        print(f"Subject: {subject}")
-        print(f"Purpose: {purpose}")
-        print(f"\n  YOUR OTP CODE: {otp}")
-        print(f"\n  ⏰ Expires in 60 seconds")
-        print(f"{'='*60}\n")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🔐 DEV MODE - OTP EMAIL")
+        logger.info(f"{'='*60}")
+        logger.info(f"To: {email}")
+        logger.info(f"Subject: {subject}")
+        logger.info(f"Purpose: {purpose}")
+        logger.info(f"\n  YOUR OTP CODE: {otp}")
+        logger.info(f"\n  ⏰ Expires in 60 seconds")
+        logger.info(f"{'='*60}\n")
         return True
 
     try:
@@ -245,22 +238,21 @@ async def send_otp_email(email: str, otp: str, purpose: str = "signup"):
         )
 
         await fm.send_message(message)
-        print(f"✅ OTP email sent successfully to {email}")
+        logger.info(f"✅ OTP email sent successfully to {email}")
         return True
 
     except Exception as e:
-        print(f"❌ Failed to send OTP email to {email}: {e}")
+        logger.error(f"❌ Failed to send OTP email to {email}: {e}")
         # Fallback to console
-        print(f"🔐 FALLBACK - OTP for {email}: {otp}")
+        logger.info(f"🔐 FALLBACK - OTP for {email}: {otp}")
         return False
 
-
-async def send_welcome_email(email: str, display_name: str):
+async def send_welcome_email(email: EmailStr, display_name: str):
     """Send welcome email after successful signup"""
 
     # Skip if email not configured
     if not EMAIL_ENABLED or fm is None:
-        print(f"🎉 Welcome {display_name}! (Email skipped - dev mode)")
+        logger.info(f"🎉 Welcome {display_name}! (Email skipped - dev mode)")
         return True
 
     html = f"""
@@ -361,9 +353,9 @@ async def send_welcome_email(email: str, display_name: str):
         )
 
         await fm.send_message(message)
-        print(f"✅ Welcome email sent to {email}")
+        logger.info(f"✅ Welcome email sent to {email}")
         return True
 
     except Exception as e:
-        print(f"❌ Failed to send welcome email: {e}")
+        logger.error(f"❌ Failed to send welcome email: {e}")
         return False
