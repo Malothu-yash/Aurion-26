@@ -75,7 +75,7 @@ async def signup_step1(data: SignupStep1Request, background_tasks: BackgroundTas
     
     return {
         "success": True,
-        "message": "OTP sent to your email",
+        "message": "OTP sent to your email. If you don't see it in your inbox, please check your spam or promotions folder.",
         "expires_in": result["expires_in"],
         "otp": result["otp"]  # REMOVE IN PRODUCTION - for testing only
     }

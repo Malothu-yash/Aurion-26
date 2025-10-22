@@ -1,3 +1,4 @@
+from app import email_service
 # app/main.py
 # This is the main file that runs our FastAPI application.
 
@@ -153,6 +154,9 @@ from app.api.sessions import session_router
 app.include_router(session_router)
 from app.text_selection_api import text_selection_router
 app.include_router(text_selection_router, prefix="/api/v1")
+
+# Register test email router for SendGrid delivery testing (after app is defined)
+app.include_router(email_service.router, prefix="/api/v1")
 
 # --- Mini Agent Router ---
 from fastapi import BackgroundTasks

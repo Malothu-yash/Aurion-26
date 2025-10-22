@@ -50,9 +50,10 @@ class Settings(pydantic_settings.BaseSettings):
     REDIS_PASSWORD: str | None = None
     REDIS_URL: str | None = None
 
-    # --- EMAIL TOOL API ---
-    SENDGRID_API_KEY: str | None = None
-    SENDER_EMAIL: pydantic.EmailStr | None = None # Ensures it's a valid email format
+    # --- EMAIL TOOL API (SendGrid) ---
+    SENDGRID_API_KEY: str | None = os.getenv("SENDGRID_API_KEY")
+    SENDER_EMAIL: pydantic.EmailStr | None = os.getenv("SENDER_EMAIL")  # Ensures it's a valid email format
+    # Set these in your environment or .env file for SendGrid
 
     # --- SMTP EMAIL CONFIGURATION (for OTP emails) ---
     MAIL_USERNAME: str | None = None  # Gmail address
