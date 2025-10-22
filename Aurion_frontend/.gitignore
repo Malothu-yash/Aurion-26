@@ -1,0 +1,10 @@
+dist/
+node_modules/
+.wrangler/
+.dev.vars
+worker-configuration.d.ts
+
+# Environment variables
+.env
+.env.local
+.env.production.local

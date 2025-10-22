@@ -1,0 +1,88 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: aurion-backend
+    env: python
+    region: oregon # Choose your preferred region
+    plan: free # or starter for production
+    branch: improve/ui-backend # Your git branch
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    
+    # Environment variables (Add these in Render dashboard)
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      
+      # AI APIs
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: COHERE_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      
+      # Google APIs
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GOOGLE_SEARCH_CX_ID
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      
+      # Database APIs
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_INDEX_NAME
+        value: aurion_index
+      - key: REDIS_URL
+        sync: false
+      - key: MONGODB_URL
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: aurion_auth
+      
+      # Neo4j
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      
+      # Email Configuration
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDER_EMAIL
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      
+      # Project Settings
+      - key: PROJECT_NAME
+        value: AURION AI
+      - key: BASE_URL
+        value: https://aurion-backend.onrender.com # Update with your actual URL
+      - key: FRONTEND_URL
+        value: https://your-frontend.vercel.app # Update with your Vercel URL
+      - key: ALLOWED_ORIGINS
+        value: http://localhost:5173,https://your-frontend.vercel.app # Update with your Vercel URL
+      
+      # JWT Settings
+      - key: JWT_SECRET_KEY
+        sync: false # Add this as a secret in Render dashboard
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 30

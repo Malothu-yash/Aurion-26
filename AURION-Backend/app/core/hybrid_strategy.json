@@ -1,0 +1,43 @@
+{
+  "intent_classification": {
+    "primary": "groq_llama-3.1-8b-instant",
+    "secondary": "groq_llama-3.3-70b-versatile",
+    "backup": ["gemini-2.5-flash"],
+    "cache": "redis",
+    "confidence_threshold": 0.7
+  },
+  "embeddings": {
+    "primary": "groq_embed",
+    "backup": ["groq_8b_semantic", "gemini-embedding-001"],
+    "fallback": "hash",
+    "cache": "redis"
+  },
+  "response_generation": {
+    "primary": "gemini-2.5-flash",
+    "backup": ["groq_llama-3.3-70b-versatile", "groq_llama-3.1-8b-instant"],
+    "static_fallback": "Sorry, I couldn't process that request.",
+    "routing": {
+      "factual": "gemini-2.5-flash",
+      "creative": "gemini-2.5-flash",
+      "code": "groq_llama-3.1-8b-instant"
+    }
+  },
+  "external": {
+    "web_search": ["zenserp", "serpapi", "google_cse"],
+    "youtube": ["youtube_data_v3", "friend_youtube_key"],
+    "calendar": ["google_calendar", "friend_calendar_key"],
+    "gmail": ["gmail_api", "friend_gmail_key"]
+  },
+  "memory": {
+    "short_term": "redis_cloud",
+    "long_term": "pinecone",
+    "graph": "neo4j",
+    "auth": "mongodb_atlas",
+    "local_backup": true
+  },
+  "system_monitor": {
+    "health_check_interval": "5m",
+    "rate_limit_auto_switch": true,
+    "log_to": "mongodb_logs"
+  }
+}

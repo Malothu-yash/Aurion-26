@@ -1,0 +1,63 @@
+# General
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+.venv/
+venv/
+env/
+*.pyc
+__pycache__/
+.pytest_cache/
+coverage/
+.coverage*
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+
+# Node/Frontend
+node_modules/
+dist/
+.next/
+.nuxt/
+out/
+build/
+.parcel-cache/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Vite/Turbopack
+.turbo/
+.cache/
+
+# Python Backend specific
+AURION-Backend/venv/
+AURION-Backend/.env
+AURION-Backend/__pycache__/
+AURION-Backend/.pytest_cache/
+AURION-Backend/*.sqlite3
+AURION-Backend/*.db
+AURION-Backend/*.pyc
+
+# Secrets/credentials
+AURION-Backend/credentials.json
+AURION-Backend/google-auth.json
+AURION-Backend/EMAIL_SETUP_GUIDE.txt
+AURION-Backend/README_ADVANCED_FEATURES.txt
+AURION-Backend/README_IMPLEMENTATION.txt
+
+# Frontend specific
+Aurion_frontend/node_modules/
+Aurion_frontend/dist/
+Aurion_frontend/.env
+Aurion_frontend/.next/
+Aurion_frontend/.vercel/
+Aurion_frontend/.wrangler/
+Aurion_frontend/.turbo/
+
+# OS-specific
+ehthumbs.db
+Icon?
