@@ -1,42 +1,125 @@
-# app/email_service.py
-# Email service for sending OTPs using Gmail SMTP or other providers
+# -*- coding: utf-8 -*-
 
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+# app/email_service.py
+# Robust email service for sending OTPs and welcome emails using Gmail SMTP or other providers
+
+import aiosmtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from pydantic import EmailStr
 from app.core.config import settings
 import logging
-from typing import List
+import asyncio
+import secrets
+import string
 
 # Set up logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Check if email is configured
 EMAIL_ENABLED = (
     bool(settings.MAIL_USERNAME) and 
-    bool(settings.MAIL_PASSWORD)
+    bool(settings.MAIL_PASSWORD) and
+    bool(settings.MAIL_FROM)
 )
 
-if EMAIL_ENABLED:
-    # Email configuration
-    conf = ConnectionConfig(
-        MAIL_USERNAME=settings.MAIL_USERNAME,
-        MAIL_PASSWORD=settings.MAIL_PASSWORD,  # Already SecretStr from config
-        MAIL_FROM=settings.MAIL_FROM,
-        MAIL_PORT=settings.MAIL_PORT,
-        MAIL_SERVER=settings.MAIL_SERVER,
-        MAIL_FROM_NAME=settings.MAIL_FROM_NAME,
-        MAIL_STARTTLS=settings.MAIL_STARTTLS,
-        MAIL_SSL_TLS=settings.MAIL_SSL_TLS,
-        USE_CREDENTIALS=True,
-        VALIDATE_CERTS=True
-    )
+async def test_smtp_connection() -> bool:
+    """Test SMTP connection to diagnose issues with retries"""
+    max_retries = 3
+    retry_delay = 2
+    timeout = 10  # Seconds
 
-    # Initialize FastMail
-    fm = FastMail(conf)
-    logger.info("✅ Email service configured successfully")
-else:
-    fm = None
-    logger.warning("⚠️ Email not configured - OTPs will be printed to console")
+    for attempt in range(max_retries):
+        try:
+            smtp = aiosmtplib.SMTP(
+                hostname=settings.MAIL_SERVER,
+                port=settings.MAIL_PORT,
+                use_tls=settings.MAIL_SSL_TLS,
+                start_tls=settings.MAIL_STARTTLS,
+                timeout=timeout
+            )
+            await smtp.connect()
+            await smtp.login(
+                settings.MAIL_USERNAME,
+                settings.MAIL_PASSWORD.get_secret_value() if hasattr(settings.MAIL_PASSWORD, 'get_secret_value') else settings.MAIL_PASSWORD
+            )
+            await smtp.quit()
+            logger.info("✅ SMTP connection test successful")
+            return True
+        except Exception as e:
+            logger.error(f"❌ SMTP connection test failed (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+    logger.error("❌ SMTP connection failed after max retries")
+    return False
+
+
+    # Plain text fallback
+    text = f"""
+    {greeting}
+    
+    {message_text}
+    
+    Your verification code is: {otp}
+    
+    This code will expire in 5 minutes.
+    
+    If you didn't request this code, please ignore this email.
+    
+    ---
+    AURION AI - Your Intelligent Assistant
+    """
+
+    # If email is not configured, print to console (DEV MODE)
+    if not EMAIL_ENABLED:
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🔐 DEV MODE - OTP EMAIL")
+        logger.info(f"{'='*60}")
+        logger.info(f"To: {email}")
+        logger.info(f"Subject: {subject}")
+        logger.info(f"Purpose: {purpose}")
+        logger.info(f"\n  YOUR OTP CODE: {otp}")
+        logger.info(f"\n  ⏰ Expires in 5 minutes")
+        logger.info(f"{'='*60}\n")
+        return True
+
+    # Send email using aiosmtplib
+    try:
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
+        message["To"] = email
+
+        # Attach plain text and HTML parts
+        part1 = MIMEText(text, "plain")
+        part2 = MIMEText(html, "html")
+        message.attach(part1)
+        message.attach(part2)
+
+        smtp = aiosmtplib.SMTP(
+            hostname=settings.MAIL_SERVER,
+            port=settings.MAIL_PORT,
+            use_tls=settings.MAIL_SSL_TLS,
+            start_tls=settings.MAIL_STARTTLS,
+            timeout=timeout
+        )
+        await smtp.connect()
+        await smtp.login(
+            settings.MAIL_USERNAME,
+            settings.MAIL_PASSWORD.get_secret_value() if hasattr(settings.MAIL_PASSWORD, 'get_secret_value') else settings.MAIL_PASSWORD
+        )
+        await smtp.send_message(message)
+        await smtp.quit()
+        
+        logger.info(f"✅ OTP email sent successfully to {email}")
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Failed to send OTP email to {email}: {e}")
+        # Fallback to console
+        logger.info(f"🔐 FALLBACK - OTP for {email}: {otp}")
+        return False
 
 async def send_otp_email(email: EmailStr, otp: str, purpose: str = "signup"):
     """
@@ -216,7 +299,7 @@ async def send_otp_email(email: EmailStr, otp: str, purpose: str = "signup"):
     """
 
     # If email is not configured, print to console (DEV MODE)
-    if not EMAIL_ENABLED or fm is None:
+    if not EMAIL_ENABLED:
         logger.info(f"\n{'='*60}")
         logger.info(f"🔐 DEV MODE - OTP EMAIL")
         logger.info(f"{'='*60}")
@@ -229,15 +312,31 @@ async def send_otp_email(email: EmailStr, otp: str, purpose: str = "signup"):
         return True
 
     try:
-        message = MessageSchema(
-            subject=subject,
-            recipients=[email],
-            body=text,
-            html=html,
-            subtype=MessageType.html
-        )
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
+        message["To"] = email
 
-        await fm.send_message(message)
+        # Attach plain text and HTML parts
+        part1 = MIMEText(text, "plain")
+        part2 = MIMEText(html, "html")
+        message.attach(part1)
+        message.attach(part2)
+
+        smtp = aiosmtplib.SMTP(
+            hostname=settings.MAIL_SERVER,
+            port=settings.MAIL_PORT,
+            use_tls=settings.MAIL_SSL_TLS,
+            start_tls=settings.MAIL_STARTTLS,
+            timeout=10
+        )
+        await smtp.connect()
+        await smtp.login(
+            settings.MAIL_USERNAME,
+            settings.MAIL_PASSWORD.get_secret_value() if hasattr(settings.MAIL_PASSWORD, 'get_secret_value') else settings.MAIL_PASSWORD
+        )
+        await smtp.send_message(message)
+        await smtp.quit()
         logger.info(f"✅ OTP email sent successfully to {email}")
         return True
 
@@ -249,12 +348,13 @@ async def send_otp_email(email: EmailStr, otp: str, purpose: str = "signup"):
 
 async def send_welcome_email(email: EmailStr, display_name: str):
     """Send welcome email after successful signup"""
-
+    timeout = 10  # Seconds
     # Skip if email not configured
-    if not EMAIL_ENABLED or fm is None:
+    if not EMAIL_ENABLED:
         logger.info(f"🎉 Welcome {display_name}! (Email skipped - dev mode)")
         return True
 
+    subject = "🎉 Welcome to AURION AI!"
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -343,19 +443,55 @@ async def send_welcome_email(email: EmailStr, display_name: str):
     </html>
     """
 
-    try:
-        message = MessageSchema(
-            subject="🎉 Welcome to AURION AI!",
-            recipients=[email],
-            body=f"Welcome {display_name}! Start your AI journey with AURION.",
-            html=html,
-            subtype=MessageType.html
-        )
+    text = f"""
+    Welcome {display_name}!
+    
+    Welcome to AURION AI - Your intelligent assistant powered by cutting-edge AI technology.
+    
+    We're excited to have you on board! Here's what you can do with AURION:
+    - Have natural conversations with advanced AI
+    - Manage your calendar and schedule
+    - Let autonomous agents handle complex tasks
+    - Get personalized insights and recommendations
+    - Enjoy enterprise-grade security and privacy
+    
+    Start chatting now: {settings.FRONTEND_URL}/chat
+    
+    If you have any questions, feel free to reach out to our support team.
+    
+    Happy exploring!
+    The AURION Team
+    """
 
-        await fm.send_message(message)
+    try:
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
+        message["To"] = email
+
+        # Attach plain text and HTML parts
+        part1 = MIMEText(text, "plain")
+        part2 = MIMEText(html, "html")
+        message.attach(part1)
+        message.attach(part2)
+
+        smtp = aiosmtplib.SMTP(
+            hostname=settings.MAIL_SERVER,
+            port=settings.MAIL_PORT,
+            use_tls=settings.MAIL_SSL_TLS,
+            start_tls=settings.MAIL_STARTTLS,
+            timeout=timeout
+        )
+        await smtp.connect()
+        await smtp.login(
+            settings.MAIL_USERNAME,
+            settings.MAIL_PASSWORD.get_secret_value() if hasattr(settings.MAIL_PASSWORD, 'get_secret_value') else settings.MAIL_PASSWORD
+        )
+        await smtp.send_message(message)
+        await smtp.quit()
         logger.info(f"✅ Welcome email sent to {email}")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to send welcome email: {e}")
+        logger.error(f"❌ Failed to send welcome email to {email}: {e}")
         return False
