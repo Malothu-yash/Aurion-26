@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Bot, Send, X, Minimize2, Maximize2, MessageSquare, Lightbulb, Zap, BookOpen, Code, Search, Languages, FileText, Brain, Sparkles, Pin, PinOff, Move, RotateCcw, Copy } from 'lucide-react';
+import { Bot, Send, X, Minimize2, Maximize2, MessageSquare, Lightbulb, Zap, BookOpen, Code, Search, Languages, FileText, Brain, Sparkles, Pin, PinOff, RotateCcw, Copy } from 'lucide-react';
 import { MiniAgentChatProps } from '@/shared/types';
 import MiniAgentErrorBoundary from './ErrorBoundary';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
@@ -374,7 +374,6 @@ const MiniAgentChat = memo(function MiniAgentChat({
                     </span>
                     <button
                       onClick={() => {
-                        const newSession = { ...session, conversation: [] };
                         // Reset conversation logic here
                       }}
                       className="text-xs text-orange-400 hover:text-orange-300 transition-colors duration-200 flex items-center space-x-1"

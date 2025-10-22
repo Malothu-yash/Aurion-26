@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Highlighter, Bot, Volume2, X, Lightbulb, BookOpen, MessageSquare, Zap, Languages, FileText, Brain, Sparkles, Copy, Share, Pin } from 'lucide-react';
-import { TextSelectionPopupProps } from '@/shared/types';
-import { HIGHLIGHT_COLORS } from '@/shared/types';
+import { Highlighter, Bot, Volume2, X, Lightbulb, BookOpen, MessageSquare, Zap, Languages, FileText, Brain, Sparkles, Copy, Share, Pin, Code, Search } from 'lucide-react';
+import { TextSelectionPopupProps, type HighlightColor } from '@/shared/types';
 import { HighlightColorPalette } from './HighlightSystem';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
@@ -17,12 +16,13 @@ export default function TextSelectionPopup({
   const [showColorPalette, setShowColorPalette] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [isHovered, setIsHovered] = useState(false);
+  type SuggestionItem = { text: string; icon: React.ElementType; action: string };
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  // no-op: hovered state removed as unused
 
   // Keyboard shortcuts for the popup
   useKeyboardShortcuts({
-    onOpenMiniAgent: () => onMiniAgent(selection.text),
+    onOpenMiniAgent: () => onMiniAgent(),
     onCloseMiniAgent: onClose,
     onToggleHighlight: () => setShowColorPalette(!showColorPalette)
   });
@@ -52,7 +52,7 @@ export default function TextSelectionPopup({
   // Generate intelligent suggestions based on selected text
   useEffect(() => {
     const generateSuggestions = (text: string) => {
-      const suggestions: { text: string; icon: any; action: string }[] = [];
+      const suggestions: SuggestionItem[] = [];
       const lowerText = text.toLowerCase();
       
       // Code-related suggestions
@@ -122,7 +122,7 @@ export default function TextSelectionPopup({
   }, [selection.text]);
 
   // Advanced actions for the popup
-  const advancedActions = [
+  const advancedActions: SuggestionItem[] = [
     { icon: Languages, text: 'Translate', action: 'Translate this to another language' },
     { icon: FileText, text: 'Summarize', action: 'Create a detailed summary' },
     { icon: Brain, text: 'Analyze', action: 'Analyze this content deeply' },
@@ -131,7 +131,7 @@ export default function TextSelectionPopup({
     { icon: Sparkles, text: 'Improve', action: 'How can this be improved?' }
   ];
 
-  const handleColorSelect = (color: string) => {
+  const handleColorSelect = (color: HighlightColor) => {
     onHighlight(color);
     setShowColorPalette(false);
   };
@@ -161,8 +161,6 @@ export default function TextSelectionPopup({
         left: position.x,
         top: position.y - 80,
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">

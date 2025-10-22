@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Highlighter, X, Edit3, Trash2, Palette, BookOpen, Tag, Filter } from 'lucide-react';
+import { useState } from 'react';
+import { Highlighter, X, Edit3, Trash2, Palette } from 'lucide-react';
 import { HIGHLIGHT_COLORS, HighlightColor } from '@/shared/types';
 
 interface HighlightColorPaletteProps {

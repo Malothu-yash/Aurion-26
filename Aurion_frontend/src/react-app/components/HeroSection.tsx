@@ -3,14 +3,11 @@ import { useAuth } from '@/react-app/context/AuthContext';
 import { useNavigate } from 'react-router';
 import { 
   MessageCircle, 
-  Sparkles, 
-  Zap, 
   ArrowRight, 
   Play,
   Star,
   Users,
-  LogIn,
-  UserPlus
+  LogIn
 } from 'lucide-react';
 import AuthModal from './AuthModal';
 

@@ -46,7 +46,7 @@ class MiniAgentErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBo
   }
 }
 
-const DefaultErrorFallback: React.FC<{ error: Error; retry: () => void }> = ({ error, retry }) => (
+const DefaultErrorFallback: React.FC<{ error: Error; retry: () => void }> = ({ error: _error, retry }) => (
   <div className="mini-agent-error p-4 bg-red-50 border border-red-200 rounded-lg m-2">
     <h3 className="text-red-800 font-semibold text-sm">Mini Agent Error</h3>
     <p className="text-red-600 mt-2 text-xs">Something went wrong with the Mini Agent.</p>

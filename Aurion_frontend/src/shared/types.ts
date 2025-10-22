@@ -81,7 +81,7 @@ export type GetMiniAgentSessionsRequest = z.infer<typeof GetMiniAgentSessionsReq
 export interface TextSelectionPopupProps {
   selection: TextSelection;
   position: { x: number; y: number };
-  onHighlight: (color: string) => void;
+  onHighlight: (color: HighlightColor | string) => void;
   onMiniAgent: () => void;
   onSpeaker: () => void;
   onClose: () => void;

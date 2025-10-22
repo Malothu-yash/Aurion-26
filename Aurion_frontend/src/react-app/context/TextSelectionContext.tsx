@@ -1,14 +1,13 @@
 // context/TextSelectionContext.tsx
 // Context for managing text selection features across the app
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { 
   Highlight, 
   MiniAgentSession, 
   TextSelection,
-  SaveHighlightRequest,
-  SaveMiniAgentSessionRequest 
+  SaveHighlightRequest
 } from '@/shared/types';
 import { textSelectionService } from '@/react-app/services/textSelectionService';
 

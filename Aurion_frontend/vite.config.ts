@@ -21,20 +21,15 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          ai: ['@ai-sdk/react', '@ai-sdk/openai'],
-          ui: ['lucide-react', 'framer-motion'],
+          ui: ['lucide-react'],
           miniAgent: ['./src/react-app/components/MiniAgentChat.tsx', './src/react-app/components/TextSelectionPopup.tsx']
         }
       }
     },
-    sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
-    }
+    sourcemap: false
+  },
+  esbuild: {
+    drop: ['console', 'debugger']
   },
   resolve: {
     alias: {

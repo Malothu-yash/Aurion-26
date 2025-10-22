@@ -39,7 +39,7 @@
     "node": "22.x"
   },
   "scripts": {
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "cf-typegen": "wrangler types",
     "check": "tsc && vite build && wrangler deploy --dry-run",
     "dev": "vite",

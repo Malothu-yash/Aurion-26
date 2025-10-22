@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Volume2, VolumeX, Play, Pause, RotateCcw, Settings, Mic } from 'lucide-react';
 
 interface SpeakerFeatureProps {
@@ -278,7 +278,6 @@ interface SpeakerButtonProps {
 export function SpeakerButton({ text, className = '', size = 'md' }: SpeakerButtonProps) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
 
   useEffect(() => {
@@ -288,19 +287,13 @@ export function SpeakerButton({ text, className = '', size = 'md' }: SpeakerButt
       // Load available voices
       const loadVoices = () => {
         const availableVoices = window.speechSynthesis.getVoices();
-        setVoices(availableVoices);
-        
         // Set default voice (prefer English voices)
         const englishVoice = availableVoices.find(voice => 
           voice.lang.startsWith('en') && voice.default
         ) || availableVoices.find(voice => voice.lang.startsWith('en')) || availableVoices[0];
-        
         setSelectedVoice(englishVoice);
       };
-      
       loadVoices();
-      
-      // Some browsers load voices asynchronously
       if (window.speechSynthesis.onvoiceschanged !== undefined) {
         window.speechSynthesis.onvoiceschanged = loadVoices;
       }
