@@ -4,7 +4,8 @@
 # using Pydantic. This ensures our app gets the data it expects.
 
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, List
+from datetime import datetime
 
 # --- Chat Request ---
 # This is the JSON we expect from the React Frontend
@@ -79,22 +80,7 @@ class SearchResponse(BaseModel):
     query: Optional[str] = None  # The original search query
 
 
-# --- NEW: Schema for the Inline Mini Agent ---
-# This is for the "Ask AI about this" feature where users can
-# select text and ask questions about it in a mini panel
-class MiniAgentRequest(BaseModel):
-    """Request from the Mini Agent panel with selected text and user question"""
-    snippet: str  # The text the user selected
-    query: str  # The user's follow-up question
-    user_id: str  # To link it to the user for isolated memory
 
-class MiniThreadMemory(BaseModel):
-    """Memory structure for storing mini-thread interactions in isolated namespace"""
-    user_id: str
-    snippet: str
-    query: str
-    response: str
-    timestamp: str
 
 
 # --- User Schema for Authentication ---
@@ -104,3 +90,46 @@ class User(BaseModel):
     display_name: Optional[str] = None
     role: Optional[str] = None
     hobbies: Optional[list[str]] = None
+
+# --- Mini Agent Chat ---
+class MiniAgentChatRequest(BaseModel):
+    messageId: str
+    selectedText: Optional[str] = None
+    userMessage: str
+    sessionId: str
+
+class MiniAgentChatResponse(BaseModel):
+    reply: str
+    model_used: Optional[str] = None
+    tier_used: Optional[str] = None
+
+class MiniAgentMessage(BaseModel):
+    role: Literal['user', 'assistant']
+    content: str
+
+class MiniAgentConversation(BaseModel):
+    messageId: str
+    sessionId: str
+    selectedText: Optional[str] = None
+    conversations: List[MiniAgentMessage]
+    createdAt: datetime
+    updatedAt: Optional[datetime] = None
+
+# --- Highlights ---
+class HighlightRange(BaseModel):
+    start: int
+    end: int
+    text: Optional[str] = None
+
+class HighlightAddRequest(BaseModel):
+    sessionId: str
+    start: int
+    end: int
+    text: Optional[str] = None
+
+class HighlightsDoc(BaseModel):
+    messageId: str
+    sessionId: str
+    ranges: List[HighlightRange]
+    createdAt: datetime
+    updatedAt: Optional[datetime] = None

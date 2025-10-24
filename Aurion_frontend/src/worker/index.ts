@@ -255,38 +255,6 @@ app.delete('/api/tasks/:id', authMiddleware, async (c) => {
   return c.json({ success: true });
 });
 
-// Highlights
-app.post('/api/highlights', authMiddleware, async (c) => {
-  const user = c.get("user");
-  const body = await c.req.json();
-  const highlightId = crypto.randomUUID();
-
-  await c.env.DB.prepare(
-    "INSERT INTO highlights (id, user_id, message_id, text_content, color, start_offset, end_offset, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-  ).bind(
-    highlightId,
-    user!.id,
-    body.message_id,
-    body.text_content,
-    body.color,
-    body.start_offset,
-    body.end_offset,
-    body.notes || null
-  ).run();
-
-  return c.json({ id: highlightId });
-});
-
-app.get('/api/highlights/:messageId', authMiddleware, async (c) => {
-  const user = c.get("user");
-  const messageId = c.req.param('messageId');
-  
-  const { results } = await c.env.DB.prepare(
-    "SELECT * FROM highlights WHERE message_id = ? AND user_id = ? ORDER BY start_offset ASC"
-  ).bind(messageId, user!.id).all();
-
-  return c.json(results);
-});
 
 // File uploads (placeholder - would integrate with R2 in production)
 app.post('/api/upload', authMiddleware, async (c) => {

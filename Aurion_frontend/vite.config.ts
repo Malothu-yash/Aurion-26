@@ -4,9 +4,18 @@ import react from "@vitejs/plugin-react";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { mochaPlugins } from "@getmocha/vite-plugins";
 
+const enableCloudflare =
+  process.env.VITE_ENABLE_CLOUDFLARE === '1' ||
+  process.env.CF_PAGES === '1' ||
+  process.env.CI === 'true';
+
 export default defineConfig({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  plugins: [...mochaPlugins(process.env as any), react(), cloudflare()],
+  plugins: [
+    ...mochaPlugins(process.env as any),
+    react(),
+    ...(enableCloudflare ? [cloudflare()] : [])
+  ],
   server: {
     allowedHosts: true,
     hmr: {
@@ -21,8 +30,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          ui: ['lucide-react'],
-          miniAgent: ['./src/react-app/components/MiniAgentChat.tsx', './src/react-app/components/TextSelectionPopup.tsx']
+          ui: ['lucide-react']
         }
       }
     },

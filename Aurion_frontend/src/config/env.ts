@@ -19,17 +19,8 @@ export const ENV = {
     return `${this.API_BASE_URL}/chat/stream`;
   },
   
-  get MINI_AGENT_STREAM() {
-    return `${this.API_BASE_URL}/mini_agent/stream`;
-  },
   
-  get HIGHLIGHTS_BASE() {
-    return `${this.API_BASE_URL}/highlights`;
-  },
   
-  get MINI_AGENT_SESSIONS() {
-    return `${this.API_BASE_URL}/mini-agent-sessions`;
-  },
   
   // Development mode
   isDevelopment: import.meta.env.DEV,

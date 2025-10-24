@@ -1,6 +1,7 @@
 # app/auth_db.py
 # MongoDB-based authentication system for AURION
 
+
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timedelta
 import bcrypt
@@ -9,10 +10,11 @@ import string
 from typing import Optional, Dict
 from fastapi import Depends, HTTPException, Header
 from app.models.schemas import User
+from app.core.config import settings
 
 # MongoDB Connection
-MONGO_URI = "mongodb+srv://rathodvamshi369_db_user:Eq2JkCFpTGp8xXDf@cluster0.xw1knwt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-MONGO_DB = "Aurion"
+MONGO_URI = getattr(settings, 'mongo_uri', None)
+MONGO_DB = getattr(settings, 'mongo_db_name', 'aurion')
 
 mongo_client: Optional[AsyncIOMotorClient] = None
 db = None
@@ -41,6 +43,17 @@ async def init_mongodb():
             await db.chat_sessions.create_index("user_id")
             await db.chat_messages.create_index("session_id")
             await db.chat_messages.create_index("user_id")
+
+            # Mini agent conversation indexes
+            await db.mini_agent_conversations.create_index("messageId", unique=True)
+            await db.mini_agent_conversations.create_index("sessionId")
+            await db.mini_agent_conversations.create_index("updatedAt")
+
+            # Message highlights indexes
+            await db.message_highlights.create_index("messageId", unique=True)
+            await db.message_highlights.create_index("sessionId")
+            await db.message_highlights.create_index("updatedAt")
+            
             
             print("✅ MongoDB connected successfully")
             return True

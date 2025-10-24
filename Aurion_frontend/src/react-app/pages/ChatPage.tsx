@@ -244,14 +244,14 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+  {/* Messages Area */}
+  <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-6">
           {messages.length === 0 ? (
             <WelcomeScreen onSendMessage={sendMessage} />
           ) : (
             <>
               {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
+                <MessageBubble key={message.id} message={message} sessionId={currentSessionId || undefined} />
               ))}
               {isLoading && (
                 <div className="flex items-start space-x-4">

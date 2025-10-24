@@ -9,8 +9,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime
 
 # MongoDB connection
-MONGO_URI = "mongodb+srv://rathodvamshi369_db_user:Eq2JkCFpTGp8xXDf@cluster0.xw1knwt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-DATABASE = "Aurion"
+from app.core.config import settings
+MONGO_URI = getattr(settings, 'mongo_uri', None)
+DATABASE = getattr(settings, 'mongo_db_name', 'aurion')
 
 async def view_all_users():
     """View all registered users in the database"""

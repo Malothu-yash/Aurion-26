@@ -23,6 +23,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ConversationStateManager:
+    async def add_message(self, session_id: str, role: str, content: str, metadata: dict = None):
+        """Save a message to the conversation history in Redis."""
+        key = f"conversation_history:{session_id}"
+        message = {
+            "role": role,
+            "content": content,
+            "metadata": metadata or {},
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+        try:
+            async with redis.Redis(connection_pool=self.redis_pool) as r:
+                await r.rpush(key, json.dumps(message))
+            logger.info(f"✅ Added message to conversation history for {session_id}")
+        except Exception as e:
+            logger.error(f"Error saving message to conversation history: {e}")
     """Manages conversation state for natural context flow"""
     
     def __init__(self, redis_pool):

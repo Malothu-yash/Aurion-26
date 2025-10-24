@@ -1,51 +1,9 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Text Selection Features Styles */
-.highlighted-text {
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
-}
 
-.highlighted-text:hover {
-  transform: scale(1.02);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* Typing indicator for mini agent */
-.typing-indicator {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.typing-indicator .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: #06ffa5;
-  animation: typing 1.4s infinite ease-in-out;
-}
-
-.typing-indicator .dot:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
-.typing-indicator .dot:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes typing {
-  0%, 80%, 100% {
-    transform: scale(0.8);
-    opacity: 0.5;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
 
 /* Fade in animation */
 .animate-fade-in-up {
@@ -93,28 +51,11 @@
   background-clip: text;
 }
 
-/* Drag handle for mini agent */
-.drag-handle {
-  cursor: move;
-}
 
 .drag-handle:hover {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Responsive mini agent on mobile */
-@media (max-width: 768px) {
-  .mini-agent-mobile {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    top: auto !important;
-    width: 100% !important;
-    height: 50vh !important;
-    border-radius: 16px 16px 0 0 !important;
-  }
-}
 
 :root {
   font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
@@ -666,56 +607,8 @@ body {
   box-shadow: 0 8px 32px rgba(255, 107, 53, 0.2);
 }
 
-/* Mini Agent Specific Styles */
-.mini-agent-container {
-  backdrop-filter: blur(20px);
-  background: rgba(139, 69, 19, 0.1);
-  border: 1px solid rgba(255, 165, 0, 0.2);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-}
 
-.mini-agent-header {
-  background: linear-gradient(135deg, rgba(139, 69, 19, 0.2), rgba(255, 165, 0, 0.1));
-  border-bottom: 1px solid rgba(255, 165, 0, 0.2);
-}
 
-.mini-agent-message {
-  background: linear-gradient(135deg, rgba(139, 69, 19, 0.3), rgba(255, 165, 0, 0.1));
-  border-left: 3px solid rgba(255, 165, 0, 0.5);
-  transition: all 0.3s ease;
-}
-
-.mini-agent-message:hover {
-  background: linear-gradient(135deg, rgba(139, 69, 19, 0.4), rgba(255, 165, 0, 0.2));
-  transform: translateX(5px);
-}
-
-/* Text Selection Popup Styles */
-.text-selection-popup {
-  backdrop-filter: blur(20px);
-  background: linear-gradient(135deg, rgba(139, 69, 19, 0.15), rgba(255, 165, 0, 0.05));
-  border: 1px solid rgba(255, 165, 0, 0.3);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
-}
-
-.text-selection-preview {
-  background: linear-gradient(135deg, rgba(139, 69, 19, 0.2), rgba(255, 165, 0, 0.1));
-  border: 1px solid rgba(255, 165, 0, 0.2);
-  border-radius: 8px;
-}
-
-/* Enhanced Button Hover Effects */
-.btn-mini-agent {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(147, 51, 234, 0.8));
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  transition: all 0.3s ease;
-}
-
-.btn-mini-agent:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 1), rgba(147, 51, 234, 1));
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
-}
 
 .btn-speaker {
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.8), rgba(16, 185, 129, 0.8));
@@ -729,17 +622,6 @@ body {
   box-shadow: 0 10px 25px rgba(34, 197, 94, 0.3);
 }
 
-.btn-highlight {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.8), rgba(245, 158, 11, 0.8));
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  transition: all 0.3s ease;
-}
-
-.btn-highlight:hover {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 1), rgba(245, 158, 11, 1));
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 10px 25px rgba(251, 191, 36, 0.3);
-}
 
 /* Voice Settings Panel */
 .voice-settings-panel {
@@ -863,45 +745,8 @@ body {
   100% { transform: scale(1); }
 }
 
-/* Enhanced Scrollbar for Mini Agent */
-.mini-agent-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.mini-agent-scrollbar::-webkit-scrollbar-track {
-  background: rgba(139, 69, 19, 0.1);
-  border-radius: 3px;
-}
-
-.mini-agent-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, rgba(255, 165, 0, 0.6), rgba(255, 165, 0, 0.3));
-  border-radius: 3px;
-}
-
-.mini-agent-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, rgba(255, 165, 0, 0.8), rgba(255, 165, 0, 0.5));
-}
 
 /* Mobile Responsive Enhancements */
 @media (max-width: 768px) {
-  .mini-agent-mobile {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    top: auto !important;
-    width: 100% !important;
-    height: 60vh !important;
-    border-radius: 20px 20px 0 0 !important;
-    transform: translateY(0) !important;
-  }
-  
-  .text-selection-popup {
-    position: fixed !important;
-    bottom: 20px !important;
-    left: 20px !important;
-    right: 20px !important;
-    top: auto !important;
-    width: auto !important;
-  }
+  /* Add mobile responsive styles here as needed */
 }

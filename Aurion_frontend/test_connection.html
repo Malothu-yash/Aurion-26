@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORS Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>CORS Connection Test</h1>
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+        
+        async function testConnection() {
+            const results = document.getElementById('results');
+            
+            // Test 1: Health check
+            try {
+                const healthResponse = await fetch(`${API_BASE}/health`);
+                const healthData = await healthResponse.json();
+                results.innerHTML += `
+                    <div class="test success">
+                        <h3>✅ Health Check</h3>
+                        <p>Status: ${healthResponse.status}</p>
+                        <p>Response: ${JSON.stringify(healthData)}</p>
+                    </div>
+                `;
+            } catch (error) {
+                results.innerHTML += `
+                    <div class="test error">
+                        <h3>❌ Health Check Failed</h3>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+            
+            // Test 2: Chat stream (simplified)
+            try {
+                const chatResponse = await fetch(`${API_BASE}/api/v1/chat/stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: "Hello, this is a test",
+                        conversation_id: "test-123",
+                        hint: null
+                    })
+                });
+                
+                if (chatResponse.ok) {
+                    results.innerHTML += `
+                        <div class="test success">
+                            <h3>✅ Chat Stream Connection</h3>
+                            <p>Status: ${chatResponse.status}</p>
+                            <p>Headers: ${JSON.stringify([...chatResponse.headers.entries()])}</p>
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML += `
+                        <div class="test error">
+                            <h3>❌ Chat Stream Failed</h3>
+                            <p>Status: ${chatResponse.status}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML += `
+                    <div class="test error">
+                        <h3>❌ Chat Stream Error</h3>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Run tests when page loads
+        window.addEventListener('load', testConnection);
+    </script>
+</body>
+</html>

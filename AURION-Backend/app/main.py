@@ -6,6 +6,7 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging  # Added for debugging CORS
+from datetime import datetime
 
 # Import our settings instance from the config file
 from app.core.config import settings
@@ -21,11 +22,13 @@ from app.services.memory import (
 from app.services.tools import scheduler, run_daily_briefing, run_memory_consolidation
 from app.core.monitor import log_event
 from app.admin.realtime import start_background_tasks
-from app.orchestrator import chat_router, handle_mini_agent_request
+from app.orchestrator import chat_router
 from app.auth_flow import auth_router
 from app.auth_endpoints import router as auth_mongo_router
 from app.auth_db import init_mongodb, close_mongodb
 from app.admin.routes import router as admin_router
+from app.api.mini_agent import router as mini_agent_router
+from app.api.highlights import router as highlights_router
 
 # Set up logging for debugging
 logging.basicConfig(level=logging.INFO)
@@ -55,7 +58,7 @@ async def lifespan(app: FastAPI):
     # MongoDB with proper error handling
     mongodb_success = await init_mongodb()
     if not mongodb_success:
-        logger.warning("⚠️ MongoDB connection failed - session operations will be limited")
+        logger.warning("⚠️ MongoDB connection failed")
     else:
         logger.info("✅ All databases connected successfully")
     
@@ -127,9 +130,40 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly list methods
-    allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],  # Explicitly list headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Added PATCH method
+    allow_headers=[
+        "Content-Type", 
+        "Authorization", 
+        "Accept", 
+        "X-Requested-With",
+        "X-User-Email",  # Add custom headers for authentication
+        "Cache-Control",
+        "Pragma"
+    ],
 )
+
+# Add a resilient CORS header injector that also covers exception cases
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # Ensure errors still include CORS headers so browser can read them
+        from starlette.responses import JSONResponse
+        logger.exception("Unhandled error in request pipeline: %s", e)
+        response = JSONResponse({"detail": "Internal Server Error"}, status_code=500)
+
+    # Derive origin; fall back to * for development simplicity
+    origin = request.headers.get("origin")
+    # If a specific origin is provided and allowed, reflect it; else use '*'
+    if origin and origin in allowed_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    else:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-User-Email, Accept, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 # --- API Endpoints ---
 main_router = APIRouter()
@@ -145,40 +179,28 @@ async def get_root():
         "status": "ok"
     }
 
+@main_router.get("/health")
+async def health_check():
+    """
+    Health check endpoint for CORS testing
+    """
+    return {
+        "status": "healthy",
+        "cors": "enabled",
+        "timestamp": datetime.now().isoformat()
+    }
+
 app.include_router(main_router)
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(auth_mongo_router)
 app.include_router(admin_router)
-from app.api.sessions import session_router
-app.include_router(session_router)
-from app.text_selection_api import text_selection_router
-app.include_router(text_selection_router, prefix="/api/v1")
+app.include_router(mini_agent_router)
+app.include_router(highlights_router)
 
 # Register test email router for SendGrid delivery testing (after app is defined)
 app.include_router(email_service.router, prefix="/api/v1")
 
-# --- Mini Agent Router ---
-from fastapi import BackgroundTasks
-from sse_starlette.sse import EventSourceResponse
-from app.models.schemas import MiniAgentRequest
-
-mini_agent_router = APIRouter()
-
-@mini_agent_router.post("/mini_agent/stream")
-async def mini_agent_stream_endpoint(
-    request: MiniAgentRequest, 
-    background_tasks: BackgroundTasks
-):
-    """
-    The dedicated streaming endpoint for the Inline Mini Agent.
-    100% isolated from main chat - uses separate Pinecone namespace.
-    """
-    return EventSourceResponse(
-        handle_mini_agent_request(request, background_tasks)
-    )
-
-app.include_router(mini_agent_router, prefix="/api/v1")
 
 # --- DEBUG: Calendar Test Endpoint ---
 @app.get("/api/v1/test/calendar")

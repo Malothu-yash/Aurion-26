@@ -85,7 +85,6 @@ function checkHardcodedUrls() {
   const filesToCheck = [
     'src/react-app/components/AuthModal.tsx',
     'src/react-app/pages/ChatPage.tsx',
-    'src/react-app/services/textSelectionService.ts',
     'src/react-app/services/adminApi.ts',
   ];
   

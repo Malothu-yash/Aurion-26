@@ -19,7 +19,7 @@ from app.utils.performance_monitor import monitor_performance
 from app.utils.circuit_breaker import CircuitBreaker
 from app.utils.rate_limiter import RateLimiter
 
-from app.models.schemas import ChatRequest, MiniAgentRequest
+from app.models.schemas import ChatRequest
 from app.services.conversation_state import ConversationStateManager
 from app.services import ai_clients
 from app.services import tools
@@ -27,7 +27,6 @@ from app.services.personality import PersonalityEngine
 from app.services import memory
 from app.services.natural_language_task_parser import NaturalLanguageTaskParser
 from app.services.smart_task_responder import SmartTaskResponder
-from app.services.session_manager import get_session_manager
 from app.auth_db import get_user_by_email, get_current_user
 
 # Import new intelligent services
@@ -41,7 +40,6 @@ logger = logging.getLogger(__name__)
 chat_router = APIRouter()
 
 # Initialize performance monitoring
-mini_agent_circuit_breaker = CircuitBreaker(failure_threshold=3, timeout=30)
 rate_limiter = RateLimiter()
 
 # Initialize services
@@ -98,6 +96,22 @@ smart_responder = SmartTaskResponder(ai_clients)
 
 # ==================== FASTAPI ENDPOINTS ====================
 
+@chat_router.options("/chat/stream")
+async def chat_stream_options():
+    """
+    Handle CORS preflight requests for the streaming endpoint
+    """
+    from fastapi.responses import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-User-Email",
+            "Access-Control-Max-Age": "86400"
+        }
+    )
+
 @chat_router.post("/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest):
     """
@@ -119,7 +133,16 @@ async def chat_stream_endpoint(request: ChatRequest):
                 "data": json.dumps({"error": str(e)})
             }
     
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(
+        event_generator(),
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-User-Email",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive"
+        }
+    )
 
 
 # ==================== CORE LOGIC FUNCTIONS ====================
@@ -480,11 +503,11 @@ async def handle_chat_request(
         # =================================================================
         # SAVE TO SESSION HISTORY
         # =================================================================
-        session_manager = get_session_manager()
+        state_mgr = get_state_manager()
         
         # Save user message
         try:
-            await session_manager.add_message(
+            await state_mgr.add_message(
                 session_id=conv_id,
                 role="user",
                 content=query,
@@ -496,18 +519,18 @@ async def handle_chat_request(
             )
         except Exception as e:
             logger.warning(f"Could not save user message to session: {e}")
-        
+
         # Save to memory module (backward compatibility)
         try:
             await memory.add_to_chat_history(conv_id, "user", query)
             await memory.add_to_chat_history(conv_id, "assistant", response)
         except Exception as e:
             logger.warning(f"Could not save to chat history: {e}")
-        
+
         # Save assistant response (after streaming completes)
         # We'll save it before streaming for now, or use background task
         try:
-            await session_manager.add_message(
+            await state_mgr.add_message(
                 session_id=conv_id,
                 role="assistant",
                 content=response,
@@ -518,19 +541,19 @@ async def handle_chat_request(
             )
         except Exception as e:
             logger.warning(f"Could not save assistant message to session: {e}")
-        
+
         # Auto-generate session title from first message
         try:
-            session = await session_manager.get_session(conv_id, conv_id)
+            session = await state_mgr.get_session(conv_id, conv_id)
             if session and session.get("message_count", 0) == 2:  # First exchange
-                await session_manager.auto_generate_title(conv_id, conv_id, query)
+                await state_mgr.auto_generate_title(conv_id, conv_id, query)
         except Exception as e:
             logger.debug(f"Could not auto-generate title: {e}")
-        
+
         # Stream response
         async for chunk in stream_text(response):
             yield {"event": "text_chunk", "data": chunk}
-            
+
     except Exception as e:
         logger.error(f"Error in orchestrator: {e}", exc_info=True)
         error_msg = "I encountered an error processing your request. Please try again."
@@ -817,74 +840,3 @@ async def _handle_general(
     return response
 
 
-# ==================== MINI AGENT HANDLER ====================
-
-@monitor_performance("mini_agent_request")
-async def handle_mini_agent_request(request: MiniAgentRequest, background_tasks=None):
-    """
-    Dedicated handler for Inline Mini Agent requests
-    100% isolated from main chat - uses separate Pinecone namespace
-    """
-    try:
-        # Rate limiting check
-        client_ip = "default"  # In production, get from request context
-        if not await rate_limiter.is_allowed(client_ip, 'mini_agent'):
-            yield {
-                "event": "error",
-                "data": "Rate limit exceeded. Please try again later."
-            }
-            return
-        # Build isolated prompt (NO main chat context)
-        prompt = f"""
-You are a focused AI expert. Your *only* job is to answer the user's "Query" 
-based *only* on the provided "Snippet".
-Do not use any other knowledge. Be concise and direct.
-
---- SNIPPET ---
-{request.snippet}
-
---- QUERY ---
-{request.query}
-
---- YOUR ANSWER ---
-"""
-        
-        # Stream response using ai_clients module with circuit breaker
-        full_response = ""
-        try:
-            async for chunk_text in mini_agent_circuit_breaker.call(ai_clients.generate_response_stream, prompt):
-                full_response += chunk_text
-                yield {
-                    "event": "text_chunk",
-                    "data": chunk_text
-                }
-        except Exception as circuit_error:
-            logger.warning(f"Circuit breaker triggered for mini agent: {circuit_error}")
-            # Fallback response
-            fallback_response = f"I'm having trouble processing your request right now. Here's what I can tell you about your snippet: {request.snippet[:100]}..."
-            yield {
-                "event": "text_chunk",
-                "data": fallback_response
-            }
-            full_response = fallback_response
-        
-        # Save to isolated memory (mini-threads namespace)
-        if background_tasks:
-            from app.services.memory import save_mini_thread
-            memory_data = {
-                "user_id": request.user_id,
-                "snippet": request.snippet,
-                "query": request.query,
-                "response": full_response,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-            background_tasks.add_task(save_mini_thread, memory_data)
-        
-        yield {"event": "stream_complete", "data": None}
-        
-    except Exception as e:
-        logger.error(f"Mini agent error: {e}", exc_info=True)
-        yield {
-            "event": "error",
-            "data": str(e)
-        }

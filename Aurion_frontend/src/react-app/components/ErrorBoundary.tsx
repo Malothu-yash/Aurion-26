@@ -10,7 +10,7 @@ interface ErrorBoundaryProps {
   fallback?: React.ComponentType<{ error: Error; retry: () => void }>;
 }
 
-class MiniAgentErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -21,7 +21,7 @@ class MiniAgentErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBo
   }
   
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Mini Agent Error:', error, errorInfo);
+    console.error('Error:', error, errorInfo);
     // Send to error tracking service if available
     if (typeof window !== 'undefined' && (window as any).gtag) {
       (window as any).gtag('event', 'exception', {
@@ -47,9 +47,9 @@ class MiniAgentErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBo
 }
 
 const DefaultErrorFallback: React.FC<{ error: Error; retry: () => void }> = ({ error: _error, retry }) => (
-  <div className="mini-agent-error p-4 bg-red-50 border border-red-200 rounded-lg m-2">
-    <h3 className="text-red-800 font-semibold text-sm">Mini Agent Error</h3>
-    <p className="text-red-600 mt-2 text-xs">Something went wrong with the Mini Agent.</p>
+  <div className="error-boundary p-4 bg-red-50 border border-red-200 rounded-lg m-2">
+    <h3 className="text-red-800 font-semibold text-sm">Error</h3>
+    <p className="text-red-600 mt-2 text-xs">Something went wrong.</p>
     <button 
       onClick={retry}
       className="mt-3 px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
@@ -59,4 +59,4 @@ const DefaultErrorFallback: React.FC<{ error: Error; retry: () => void }> = ({ e
   </div>
 );
 
-export default MiniAgentErrorBoundary;
+export default ErrorBoundary;

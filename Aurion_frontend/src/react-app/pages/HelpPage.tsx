@@ -42,14 +42,6 @@ const faqData = [
     icon: Zap,
     questions: [
       {
-        question: 'What is the highlighting feature?',
-        answer: 'Select any text in Aurion\'s responses to highlight it with different colors. This helps you organize and reference important information across conversations.'
-      },
-      {
-        question: 'How does the Mini Agent work?',
-        answer: 'Select text in any response and click the Mini Agent icon to ask follow-up questions about that specific content without affecting your main conversation.'
-      },
-      {
         question: 'Can I edit my messages after sending?',
         answer: 'Yes, hover over your messages to see the edit option. This allows you to refine your questions and get better responses.'
       }

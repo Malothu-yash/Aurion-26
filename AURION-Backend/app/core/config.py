@@ -75,6 +75,9 @@ class Settings(pydantic_settings.BaseSettings):
     # --- MongoDB (User Authentication) ---
     MONGODB_URL: str | None = None
     MONGODB_DB_NAME: str = "aurion_auth"
+    # Aliases for .env compatibility
+    mongo_uri: str | None = pydantic.Field(default=None, alias="mongo_uri")
+    mongo_db_name: str | None = pydantic.Field(default=None, alias="mongo_db_name")
 
     # --- Project Settings ---
     PROJECT_NAME: str = "AURION AI"

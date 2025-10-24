@@ -10,7 +10,6 @@ class RateLimiter:
     def __init__(self):
         self.requests: Dict[str, deque] = defaultdict(deque)
         self.limits = {
-            'mini_agent': {'requests': 10, 'window': 60},  # 10 requests per minute
             'general': {'requests': 100, 'window': 60}     # 100 requests per minute
         }
     

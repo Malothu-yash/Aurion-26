@@ -31,7 +31,7 @@ export const usePerformanceMonitoring = () => {
     
     // Send to analytics if available
     if (typeof window !== 'undefined' && (window as any).gtag) {
-      (window as any).gtag('event', 'mini_agent_request', {
+      (window as any).gtag('event', 'api_request', {
         response_time: responseTime,
         success: success,
         success_rate: metricsRef.current.successRate
@@ -40,7 +40,7 @@ export const usePerformanceMonitoring = () => {
     
     // Log performance warnings
     if (responseTime > 3000) {
-      console.warn(`Slow Mini Agent response: ${responseTime}ms`);
+      console.warn(`Slow API response: ${responseTime}ms`);
     }
   };
   
