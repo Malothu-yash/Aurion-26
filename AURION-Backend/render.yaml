@@ -1,4 +1,26 @@
 services:
+  - type: web
+    name: aurion-backend
+    env: python
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker app.main:app -b 0.0.0.0:$PORT --workers 2
+    healthCheckPath: /health
+    # Do NOT put secrets here. Use Render Dashboard to set secret env vars.
+    envVars:
+      - key: MONGODB_URL
+        value: ""
+      - key: MONGODB_DB_NAME
+        value: ""
+      - key: JWT_SECRET_KEY
+        value: ""
+      - key: FRONTEND_URL
+        value: ""
+      - key: BASE_URL
+        value: ""
+      - key: ALLOWED_ORIGINS
+        value: ""
+services:
   # Backend Web Service
   - type: web
     name: aurion-backend

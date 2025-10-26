@@ -9,13 +9,29 @@ import random
 import string
 from typing import Optional, Dict
 import pymongo
+import os
 from fastapi import Depends, HTTPException, Header
 from app.models.schemas import User
 from app.core.config import settings
 
-# MongoDB Connection
-MONGO_URI = getattr(settings, 'mongo_uri', None)
-MONGO_DB = getattr(settings, 'mongo_db_name', 'aurion')
+# MongoDB Connection (robust lookup across possible env names / aliases)
+# Prefer explicit settings attributes, then fallback to environment variables.
+_uri_candidate = None
+try:
+    _uri_candidate = getattr(settings, 'MONGODB_URL', None) or getattr(settings, 'mongo_uri', None)
+except Exception:
+    _uri_candidate = os.environ.get('MONGODB_URL') or os.environ.get('mongo_uri')
+
+MONGO_URI = _uri_candidate or os.environ.get('MONGODB_URL') or os.environ.get('mongo_uri')
+
+# Database name: prefer explicit DB name then alias then fallback default
+_db_candidate = None
+try:
+    _db_candidate = getattr(settings, 'MONGODB_DB_NAME', None) or getattr(settings, 'mongo_db_name', None)
+except Exception:
+    _db_candidate = os.environ.get('MONGODB_DB_NAME') or os.environ.get('mongo_db_name')
+
+MONGO_DB = _db_candidate or os.environ.get('MONGODB_DB_NAME') or os.environ.get('mongo_db_name') or 'aurion'
 
 mongo_client: Optional[AsyncIOMotorClient] = None
 db = None
@@ -23,13 +39,22 @@ db = None
 async def init_mongodb():
     """Initialize MongoDB connection with retry logic"""
     global mongo_client, db
+    # Validate configuration early to avoid obscure TypeErrors later
+    if not MONGO_URI:
+        print("❌ MongoDB URI not set. Please set MONGODB_URL or mongo_uri environment variable.")
+        return False
+
+    # Use a local safe DB name to avoid modifying the module-level constant
+    db_name = MONGO_DB if (isinstance(MONGO_DB, str) and MONGO_DB) else 'aurion'
+    if db_name == 'aurion' and (not isinstance(MONGO_DB, str) or not MONGO_DB):
+        print("⚠️ MongoDB DB name not set or invalid. Falling back to default 'aurion'")
     max_retries = 3
     retry_delay = 1
     
     for attempt in range(max_retries):
         try:
             mongo_client = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-            db = mongo_client[MONGO_DB]
+            db = mongo_client[db_name]
             
             # Test connection
             await mongo_client.admin.command('ping')
