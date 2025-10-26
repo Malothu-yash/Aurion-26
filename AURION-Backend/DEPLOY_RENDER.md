@@ -39,6 +39,13 @@ Do NOT use `--reload` in production (it also tends to bind on localhost).
 
 If your service currently runs `start_server.py`, Render may be launching Uvicorn with `--host 127.0.0.1`. Replace that behavior by explicitly using the Start Command above in Render settings.
 
+Alternative: use the packaged `start_server.py` as the Start Command
+```
+# In Render Start Command, you can run:
+python start_server.py
+```
+This script reads the `PORT` environment variable (Render injects it) and binds to `0.0.0.0:$PORT`. It will only enable the `--reload` dev flag when you set `DEV_RELOAD=1` in the environment. Use this when you prefer the repo to control startup logic (useful in some CI/debug scenarios), but for production we still recommend the `gunicorn` command above.
+
 ### 3) Redeploy & verify
 1. Save env vars and the new Start Command in Render UI. Trigger a new deploy (Manual Deploy or push to the branch).
 2. Watch logs in the Render Dashboard. The server should start and you should see lines like:

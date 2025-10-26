@@ -19,10 +19,18 @@ print(f".env file exists: {os.path.exists('.env')}")
 print("\nStarting AURION server...\n")
 
 # Start uvicorn
-subprocess.run([
+# Use $PORT when provided by the host (Render). Only enable --reload in dev.
+port = os.environ.get('PORT', '8000')
+use_reload = os.environ.get('DEV_RELOAD', '0') == '1'
+
+cmd = [
     sys.executable, "-m", "uvicorn",
     "app.main:app",
-    "--reload",
     "--host", "0.0.0.0",
-    "--port", "8000"
-])
+    "--port", port
+]
+
+if use_reload:
+    cmd.insert(3, "--reload")
+
+subprocess.run(cmd)
