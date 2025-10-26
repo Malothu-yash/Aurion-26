@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/react-app/context/AuthContext';
 import { useNavigate, useLocation } from 'react-router';
 import { 
@@ -51,13 +51,77 @@ export default function Sidebar() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-  // Note: Removed fetchSessions and fetchTasks calls since these endpoints don't exist yet
-  // Backend only has /api/v1/chat/stream for now
-  // Sessions and tasks are stored locally for demo purposes
+  // Load sessions from backend when available
+  // Backend worker exposes /api/chat/sessions (requires auth); the frontend will call it
+  useEffect(() => {
+    let mounted = true;
+    import('@/react-app/services/chatService')
+      .then(({ chatService }) => chatService.getSessions(user?.email))
+      .then((list) => {
+        if (!mounted) return;
+        // normalize shape we expect in the UI
+        const mapped = (list || []).map((s: any) => ({
+          id: s.id || s.session_id || s._id || s.sessionId,
+          title: s.title || 'New Chat',
+          is_pinned: !!s.is_pinned,
+          is_saved: !!s.is_saved,
+          updated_at: s.updated_at || s.updatedAt || s.updated_at,
+        }));
+        console.debug('[Sidebar] fetched sessions from backend', mapped);
+        setSessions(mapped);
+      })
+      .catch((err) => {
+        // Silent fail — keep local sessions if backend not available
+        console.debug('Could not fetch sessions from backend:', (err as any)?.message || err);
+      });
 
-  const createNewChat = () => {
-    // Navigate to new chat page without backend call
-    navigate('/chat');
+    return () => { mounted = false; };
+  }, [user?.email]);
+
+  const createNewChat = async () => {
+    // Create a server-side session when possible and navigate to it.
+    try {
+      const { chatService } = await import('@/react-app/services/chatService');
+      const created = await chatService.createSession('New Chat', user?.email);
+
+      // Normalize id from possible shapes
+  const id = created?.id || (created as any)?.session_id || (created as any)?._id || (created as any)?.sessionId;
+
+      // If backend didn't return an id, try to fetch sessions and use the most recent
+      let finalId = id;
+      if (!finalId) {
+        try {
+          const list = await chatService.getSessions(user?.email);
+          if (Array.isArray(list) && list.length > 0) {
+            finalId = list[0].id || (list[0] as any).session_id || (list[0] as any)._id || (list[0] as any).sessionId;
+          }
+        } catch (e) {
+          console.debug('Could not fetch sessions for fallback id:', (e as any)?.message || e);
+        }
+      }
+
+      const sessionObj: ChatSession = {
+        id: finalId || crypto.randomUUID(),
+        title: created?.title || 'New Chat',
+        is_pinned: !!created?.is_pinned,
+        is_saved: !!created?.is_saved,
+        updated_at: created?.updated_at || (created as any)?.updatedAt || new Date().toISOString(),
+      };
+
+      setSessions(prev => [sessionObj, ...prev]);
+
+      if (finalId) {
+        console.debug('[Sidebar] navigate to new session', finalId);
+        navigate(`/chat/${finalId}`);
+      } else {
+        console.debug('[Sidebar] createSession did not return an id; opening generic chat view');
+        navigate('/chat');
+      }
+    } catch (err) {
+      // Fallback: navigate to a local new chat when backend is not available
+      console.debug('Create session failed, opening local chat:', (err as any)?.message || err);
+      navigate('/chat');
+    }
   };
 
   const handleLogout = () => {
@@ -69,8 +133,17 @@ export default function Sidebar() {
 
   const deleteSession = (sessionId: string) => {
     if (window.confirm('Are you sure you want to delete this conversation?')) {
-      // Remove from local state (no backend yet)
+      // Try to delete from backend, but always update local state for responsiveness
       setSessions(prev => prev.filter(s => s.id !== sessionId));
+      (async () => {
+        try {
+          const { chatService } = await import('@/react-app/services/chatService');
+          await chatService.deleteSession(sessionId, user?.email);
+        } catch (err) {
+          console.debug('Backend delete session failed (may be offline):', (err as any)?.message || err);
+        }
+      })();
+
       if (location.pathname.includes(sessionId)) {
         navigate('/chat');
       }
@@ -245,11 +318,20 @@ export default function Sidebar() {
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {filteredSessions.map((session) => (
                   <div
-                    key={session.id}
+                    key={session.id || session.title}
+                    data-session-id={session.id}
                     className="group flex items-center space-x-3 p-3 rounded-lg bg-purple-900/20 hover:bg-purple-900/40 transition-all duration-200 cursor-pointer"
                     onMouseEnter={() => setHoveredItem(session.id)}
                     onMouseLeave={() => setHoveredItem(null)}
-                    onClick={() => navigate(`/chat/${session.id}`)}
+                    onClick={() => {
+                      console.debug('[Sidebar] clicked session item', session);
+                      if (session?.id) {
+                        navigate(`/chat/${session.id}`);
+                      } else {
+                        console.warn('[Sidebar] clicked session without id, falling back to /chat', session);
+                        navigate('/chat');
+                      }
+                    }}
                   >
                     <span className="flex-1 text-sm text-gray-200 truncate">
                       {session.title}

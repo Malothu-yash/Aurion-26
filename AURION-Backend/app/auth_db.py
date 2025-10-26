@@ -8,6 +8,7 @@ import bcrypt
 import random
 import string
 from typing import Optional, Dict
+import pymongo
 from fastapi import Depends, HTTPException, Header
 from app.models.schemas import User
 from app.core.config import settings
@@ -137,10 +138,41 @@ async def authenticate_user(email: str, password: str) -> Dict:
 
 async def get_user_by_email(email: str) -> Optional[Dict]:
     """Get user by email"""
-    user = await db.users.find_one({"email": email})
-    if user:
-        user["_id"] = str(user["_id"])
-    return user
+    try:
+        user = await db.users.find_one({"email": email})
+        if user:
+            user["_id"] = str(user["_id"])
+        return user
+    except Exception as e:
+        # Handle transient Mongo errors by attempting to re-initialize the client once
+        # and retrying the operation. If recovery fails, raise a 503 so the API
+        # returns a friendly status instead of crashing the request pipeline.
+        err = e
+        # Check for common connection-reset/autoreconnect errors
+        is_transient = False
+        try:
+            is_transient = isinstance(e, pymongo.errors.AutoReconnect) or isinstance(e, ConnectionResetError)
+        except Exception:
+            is_transient = False
+
+        if is_transient:
+            print(f"Detected transient Mongo error in get_user_by_email: {e}; attempting re-init")
+            init_ok = await init_mongodb()
+            if init_ok and db is not None:
+                try:
+                    user = await db.users.find_one({"email": email})
+                    if user:
+                        user["_id"] = str(user["_id"])
+                    return user
+                except Exception as e2:
+                    print(f"Retry after init failed: {e2}")
+                    raise HTTPException(status_code=503, detail="MongoDB temporarily unavailable")
+            else:
+                raise HTTPException(status_code=503, detail="MongoDB not initialized")
+
+        # Non-transient error; surface as 503
+        print(f"Non-transient DB error in get_user_by_email: {e}")
+        raise HTTPException(status_code=503, detail="MongoDB error")
 
 # OTP Management
 async def create_otp(email: str, purpose: str = "signup") -> Dict:
@@ -284,6 +316,13 @@ async def get_current_user(
     
     # TODO: Implement proper JWT token validation
     # For now, accept email from x-user-email header for development
+    # Ensure MongoDB connection is available (try to initialize on-demand)
+    global db
+    if db is None:
+        init_ok = await init_mongodb()
+        if not init_ok or db is None:
+            raise HTTPException(status_code=503, detail="MongoDB not initialized")
+
     if x_user_email:
         user_data = await get_user_by_email(x_user_email)
         if user_data:

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging  # Added for debugging CORS
 from datetime import datetime
+import asyncio
 
 # Import our settings instance from the config file
 from app.core.config import settings
@@ -37,78 +38,104 @@ logger = logging.getLogger(__name__)
 # --- Application Lifespan ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    This function runs ONCE when the app starts.
-    This is the perfect place to:
-      - Connect to databases (Redis, Pinecone)
-      - Initialize our AI clients (they already init on import)
-      - Start our APScheduler for reminders
+    """Lifespan manager for the FastAPI application.
+
+    This wraps startup logic, yields control to run the app, and then
+    performs shutdown cleanup. It handles asyncio.CancelledError so a
+    KeyboardInterrupt/Ctrl+C shutdown doesn't produce an unhandled
+    traceback and still attempts graceful cleanup.
     """
     logger.info("--- AURION Backend is starting up... ---")
     try:
-        await log_event("startup", {"component": "backend"})
-    except Exception:
-        logger.error("Failed to log startup event")
-    
-    # --- CONNECT TO DATABASES ---
-    await init_redis_pool()  # Connect to Redis
-    init_pinecone()          # Connect to Pinecone
-    init_neo4j()             # Connect to Neo4j (Semantic Memory)
-    
-    # MongoDB with proper error handling
-    mongodb_success = await init_mongodb()
-    if not mongodb_success:
-        logger.warning("⚠️ MongoDB connection failed")
-    else:
-        logger.info("✅ All databases connected successfully")
-    
-    # --- START SCHEDULER & ADD JOBS ---
-    try:
-        scheduler.start()
-        
-        # --- ADD DAILY BRIEFING JOB ---
-        scheduler.add_job(
-            run_daily_briefing,
-            'cron',
-            hour=8, minute=0,
-            args=["semantic-test-123", "rathodvamshi369@gmail.com"]
-        )
-        
-        # --- ADD WEEKLY MEMORY CONSOLIDATION JOB ---
-        scheduler.add_job(
-            run_memory_consolidation,
-            'cron',
-            day_of_week='sun',
-            hour=3, minute=0,
-            args=["semantic-test-123"]
-        )
-        
-        logger.info("Task scheduler started successfully.")
-        logger.info("Daily briefing scheduled for 8:00 AM every day.")
-        logger.info("Weekly memory consolidation scheduled for Sundays at 3:00 AM.")
-    except Exception as e:
-        logger.error(f"Error starting scheduler: {e}")
-    
-    # --- START REAL-TIME BACKGROUND TASKS ---
-    try:
-        await start_background_tasks()
-        logger.info("Real-time admin monitoring started.")
-    except Exception as e:
-        logger.error(f"Error starting real-time tasks: {e}")
-    
-    yield  # The app is now running
-    
-    # --- Shutdown ---
-    logger.info("--- AURION Backend is shutting down... ---")
-    try:
-        await log_event("shutdown", {"component": "backend"})
-    except Exception:
-        logger.error("Failed to log shutdown event")
-    await close_redis_pool()  # Disconnect from Redis
-    await close_neo4j()       # Disconnect from Neo4j
-    await close_mongodb()     # Disconnect from MongoDB
-    scheduler.shutdown()       # Stop the scheduler
-    logger.info("Task scheduler shut down.")
+        # --- STARTUP ---
+        try:
+            await log_event("startup", {"component": "backend"})
+        except Exception:
+            logger.exception("Failed to log startup event")
+
+        # --- CONNECT TO DATABASES ---
+        await init_redis_pool()  # Connect to Redis
+        init_pinecone()          # Connect to Pinecone
+        init_neo4j()             # Connect to Neo4j (Semantic Memory)
+
+        # MongoDB with proper error handling
+        mongodb_success = await init_mongodb()
+        if not mongodb_success:
+            logger.warning("⚠️ MongoDB connection failed")
+        else:
+            logger.info("✅ All databases connected successfully")
+
+        # --- START SCHEDULER & ADD JOBS ---
+        try:
+            scheduler.start()
+            scheduler.add_job(
+                run_daily_briefing,
+                'cron',
+                hour=8, minute=0,
+                args=["semantic-test-123", "rathodvamshi369@gmail.com"]
+            )
+            scheduler.add_job(
+                run_memory_consolidation,
+                'cron',
+                day_of_week='sun',
+                hour=3, minute=0,
+                args=["semantic-test-123"]
+            )
+            logger.info("Task scheduler started successfully.")
+        except Exception as e:
+            logger.exception(f"Error starting scheduler: {e}")
+
+        # --- START REAL-TIME BACKGROUND TASKS ---
+        try:
+            await start_background_tasks()
+            logger.info("Real-time admin monitoring started.")
+        except Exception as e:
+            logger.exception(f"Error starting real-time tasks: {e}")
+
+        # Yield control to Uvicorn/ASGI server: app runs while we are yielded
+        try:
+            yield
+        except asyncio.CancelledError:
+            # Lifespan receive loop was cancelled (e.g. Ctrl+C). Log and
+            # continue to shutdown sequence in the finally block.
+            logger.info("Lifespan cancelled (shutdown requested). Proceeding to cleanup.")
+
+    finally:
+        # --- SHUTDOWN / CLEANUP ---
+        logger.info("--- AURION Backend is shutting down... ---")
+        try:
+            await log_event("shutdown", {"component": "backend"})
+        except Exception:
+            logger.exception("Failed to log shutdown event")
+
+        # Attempt clean disconnects; be resilient to cancellation during cleanup
+        try:
+            await close_redis_pool()  # Disconnect from Redis
+        except asyncio.CancelledError:
+            logger.info("Cancelled while closing Redis pool")
+        except Exception:
+            logger.exception("Error closing Redis pool")
+
+        try:
+            await close_neo4j()       # Disconnect from Neo4j
+        except asyncio.CancelledError:
+            logger.info("Cancelled while closing Neo4j")
+        except Exception:
+            logger.exception("Error closing Neo4j")
+
+        try:
+            await close_mongodb()     # Disconnect from MongoDB
+        except asyncio.CancelledError:
+            logger.info("Cancelled while closing MongoDB")
+        except Exception:
+            logger.exception("Error closing MongoDB")
+
+        try:
+            scheduler.shutdown()       # Stop the scheduler
+        except Exception:
+            logger.exception("Error shutting down scheduler")
+
+        logger.info("Task scheduler shut down.")
 
 # Create the main FastAPI application instance
 app = FastAPI(

@@ -7,6 +7,7 @@ import ChatInput from '@/react-app/components/ChatInput';
 import MessageBubble from '@/react-app/components/MessageBubble';
 import WelcomeScreen from '@/react-app/components/WelcomeScreen';
 import { Sparkles } from 'lucide-react';
+import { chatService } from '@/react-app/services/chatService';
 
 interface Message {
   id: string;
@@ -34,10 +35,35 @@ export default function ChatPage() {
       return;
     }
 
+    // When the route param changes, update current session and reset messages so
+    // the UI switches to the new conversation context.
     if (sessionId) {
+      console.debug('[ChatPage] sessionId route param changed:', sessionId);
       setCurrentSessionId(sessionId);
-      // Note: fetchMessages removed - backend doesn't have session history API yet
-      // Messages will be loaded from local storage or fresh chat
+      // Clear messages for the new session; messages may be loaded from backend later
+      setMessages([]);
+      // Load messages saved for this session (if any)
+      (async () => {
+        setIsLoading(true);
+        try {
+          const list = await chatService.getSessionMessages(sessionId, user?.email);
+          // normalize into Message[] shape
+          const mapped = (list || []).map((m: any) => ({
+            id: m.id || m._id || m.message_id || crypto.randomUUID(),
+            content: m.content || '',
+            message_type: (m.message_type || m.type || 'assistant') as 'user' | 'assistant',
+            attachments: m.attachments || [],
+            metadata: m.metadata || {},
+            created_at: m.created_at || m.createdAt || new Date().toISOString()
+          }));
+          setMessages(mapped);
+          console.debug('[ChatPage] loaded messages for session', sessionId, 'count=', mapped.length, mapped.slice(0,5));
+        } catch (e) {
+          console.debug('[ChatPage] failed to load session messages:', (e as any)?.message || e);
+        } finally {
+          setIsLoading(false);
+        }
+      })();
     } else {
       // Show welcome screen for new chat
       setMessages([]);
@@ -69,6 +95,20 @@ export default function ChatPage() {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    // Persist user message if we're in a session
+    if (currentSessionId) {
+      (async () => {
+        try {
+          await chatService.postSessionMessage(currentSessionId, {
+            content: userMessage.content,
+            message_type: 'user',
+            attachments: userMessage.attachments || []
+          }, user?.email);
+        } catch (e) {
+          console.debug('[ChatPage] failed to persist user message', (e as any)?.message || e);
+        }
+      })();
+    }
     setIsLoading(true);
 
     // Create a temporary assistant message for streaming
@@ -82,7 +122,7 @@ export default function ChatPage() {
 
     setMessages(prev => [...prev, assistantMessage]);
 
-    try {
+  try {
       // Connect to AURION backend streaming endpoint
       const response = await fetch(ENV.CHAT_STREAM, {
         method: 'POST',
@@ -197,7 +237,22 @@ export default function ChatPage() {
         }
       }
 
+      // Streaming finished. Persist final assistant message if in a session.
+      const finalContent = accumulatedContent;
       setIsLoading(false);
+      if (currentSessionId) {
+        (async () => {
+          try {
+            await chatService.postSessionMessage(currentSessionId, {
+              content: finalContent,
+              message_type: 'assistant',
+              attachments: []
+            }, user?.email);
+          } catch (e) {
+            console.debug('[ChatPage] failed to persist assistant message', (e as any)?.message || e);
+          }
+        })();
+      }
 
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -243,6 +298,8 @@ export default function ChatPage() {
             </h1>
           </div>
         </div>
+
+        
 
   {/* Messages Area */}
   <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-6">

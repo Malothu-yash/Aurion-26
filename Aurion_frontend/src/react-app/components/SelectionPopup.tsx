@@ -1,5 +1,5 @@
-import { Highlighter, Bot, Volume2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { Highlighter, Bot, Volume2, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface SelectionPopupProps {
@@ -8,13 +8,16 @@ interface SelectionPopupProps {
   left: number; // relative to the positioned container
   onRequestClose: () => void;
   onMiniAgentClick?: () => void;
-  onHighlightClick?: () => void;
+  onHighlightClick?: (color?: string) => void;
+  onUnhighlightClick?: () => void;
+  showUnhighlight?: boolean;
   onSpeakClick?: () => void;
 }
 
-export default function SelectionPopup({ visible, top, left, onRequestClose, onMiniAgentClick, onHighlightClick, onSpeakClick }: SelectionPopupProps) {
+export default function SelectionPopup({ visible, top, left, onRequestClose, onMiniAgentClick, onHighlightClick, onUnhighlightClick, showUnhighlight, onSpeakClick }: SelectionPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
   const miniAgentBtnRef = useRef<HTMLButtonElement>(null);
+  const [showColorPicker, setShowColorPicker] = useState<boolean>(false);
 
   // Close on escape
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function SelectionPopup({ visible, top, left, onRequestClose, onM
           className="z-[9999] select-none"
           data-selection-popup="true"
         >
-      <motion.div
+        <motion.div
         initial={{ scale: 0.98 }}
         animate={{ scale: 1 }}
         transition={{ duration: 0.15 }}
@@ -62,10 +65,39 @@ export default function SelectionPopup({ visible, top, left, onRequestClose, onM
           className="p-2 rounded-xl text-orange-300 hover:text-orange-100 hover:bg-purple-900/60 transition-colors"
           title="Highlight"
           type="button"
-          onMouseDown={(e) => { e.stopPropagation(); onHighlightClick?.(); }}
+          onMouseDown={(e) => { e.stopPropagation(); setShowColorPicker((s) => !s); }}
         >
           <Highlighter className="w-4 h-4" />
         </button>
+        {/* Show color choices only after user clicks the highlighter button */}
+        {showColorPicker && (
+          <div className="flex items-center gap-1 ml-1">
+            <button
+              title="Yellow"
+              type="button"
+              className="w-3 h-3 rounded-sm bg-yellow-400/70 border border-yellow-600/20"
+              onMouseDown={(e) => { e.stopPropagation(); onHighlightClick?.('yellow'); setShowColorPicker(false); }}
+            />
+            <button
+              title="Pink"
+              type="button"
+              className="w-3 h-3 rounded-sm bg-pink-400/70 border border-pink-600/20"
+              onMouseDown={(e) => { e.stopPropagation(); onHighlightClick?.('pink'); setShowColorPicker(false); }}
+            />
+            <button
+              title="Green"
+              type="button"
+              className="w-3 h-3 rounded-sm bg-green-300/70 border border-green-600/20"
+              onMouseDown={(e) => { e.stopPropagation(); onHighlightClick?.('green'); setShowColorPicker(false); }}
+            />
+            <button
+              title="Blue"
+              type="button"
+              className="w-3 h-3 rounded-sm bg-blue-300/70 border border-blue-600/20"
+              onMouseDown={(e) => { e.stopPropagation(); onHighlightClick?.('blue'); setShowColorPicker(false); }}
+            />
+          </div>
+        )}
         <button
           ref={miniAgentBtnRef}
           className="p-2 rounded-xl text-orange-300 hover:text-orange-100 hover:bg-purple-900/60 transition-colors"
@@ -83,6 +115,17 @@ export default function SelectionPopup({ visible, top, left, onRequestClose, onM
         >
           <Volume2 className="w-4 h-4" />
         </button>
+        {/* Unhighlight button appears when selection is already highlighted */}
+        {showUnhighlight && onUnhighlightClick && (
+          <button
+            className="p-2 rounded-xl text-red-300 hover:text-red-100 hover:bg-purple-900/60 transition-colors"
+            title="Unhighlight"
+            type="button"
+            onMouseDown={(e) => { e.stopPropagation(); onUnhighlightClick(); }}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </motion.div>
         </motion.div>
       )}

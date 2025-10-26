@@ -120,12 +120,14 @@ class HighlightRange(BaseModel):
     start: int
     end: int
     text: Optional[str] = None
+    color: Optional[str] = None
 
 class HighlightAddRequest(BaseModel):
     sessionId: str
     start: int
     end: int
     text: Optional[str] = None
+    color: Optional[str] = None
 
 class HighlightsDoc(BaseModel):
     messageId: str

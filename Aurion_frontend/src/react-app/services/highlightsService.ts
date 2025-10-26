@@ -4,6 +4,7 @@ export interface HighlightRange {
   start: number;
   end: number;
   text?: string;
+  color?: string;
 }
 
 export interface HighlightsDoc {
@@ -19,6 +20,7 @@ export interface HighlightAddRequest {
   start: number;
   end: number;
   text?: string;
+  color?: string;
 }
 
 export async function highlightsExists(messageId: string): Promise<boolean> {
@@ -66,4 +68,22 @@ export async function deleteHighlights(messageId: string): Promise<void> {
     const txt = await res.text().catch(() => '');
     throw new Error(`Delete highlights failed: ${res.status} ${txt}`);
   }
+}
+
+export async function removeHighlightRange(messageId: string, start: number, end: number, text?: string, color?: string): Promise<HighlightsDoc> {
+  const url = `${ENV.BACKEND_URL}/api/highlights/${encodeURIComponent(messageId)}/range`;
+  const payload: any = { start, end };
+  if (text) payload.text = text;
+  if (color) payload.color = color;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.status === 404) throw new Error('Highlights not found');
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Remove highlight range failed: ${res.status} ${txt}`);
+  }
+  return res.json();
 }

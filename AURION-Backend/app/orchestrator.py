@@ -28,6 +28,9 @@ from app.services import memory
 from app.services.natural_language_task_parser import NaturalLanguageTaskParser
 from app.services.smart_task_responder import SmartTaskResponder
 from app.auth_db import get_user_by_email, get_current_user
+from app.auth_db import db as mongo_db
+import app.auth_db as auth_db_module
+from uuid import uuid4
 
 # Import new intelligent services
 from app.services.intelligent_search import intelligent_search
@@ -46,29 +49,29 @@ rate_limiter = RateLimiter()
 # Note: state_manager will be initialized lazily when first needed
 # because redis_pool is not available until app startup completes
 state_manager = None
-_state_manager_initialized = False
 
 def get_state_manager():
-    """Lazy initialization of state_manager"""
-    global state_manager, _state_manager_initialized
-    
-    if _state_manager_initialized:
-        return state_manager
-    
+    """Return a ConversationStateManager instance if Redis pool is available.
+
+    This function is safe to call multiple times during app runtime. If the
+    Redis connection pool becomes available later (after app startup), the
+    state manager will be created on the next call.
+    """
+    global state_manager
     try:
         from app.services.memory import redis_pool
-        if redis_pool:
-            state_manager = ConversationStateManager(redis_pool)
-            logger.info("✅ ConversationStateManager initialized with Redis")
-        else:
-            logger.warning("⚠️ Redis pool is None, state_manager not initialized")
-            state_manager = None
+        # If redis_pool exists and we don't yet have a state_manager, initialize it
+        if redis_pool and state_manager is None:
+            try:
+                state_manager = ConversationStateManager(redis_pool)
+                logger.info("✅ ConversationStateManager initialized with Redis")
+            except Exception as e:
+                logger.error(f"❌ Could not initialize ConversationStateManager: {e}")
+                state_manager = None
+        return state_manager
     except Exception as e:
-        logger.error(f"❌ Could not initialize state_manager with redis: {e}")
-        state_manager = None
-    
-    _state_manager_initialized = True
-    return state_manager
+        logger.error(f"Error retrieving state manager: {e}")
+        return None
 
 personality_engine = PersonalityEngine()
 nl_task_parser = NaturalLanguageTaskParser()
@@ -111,6 +114,174 @@ async def chat_stream_options():
             "Access-Control-Max-Age": "86400"
         }
     )
+
+
+# ----------------------
+# Chat sessions (FastAPI fallback when Worker is not running)
+# These endpoints mirror the worker's session API so the frontend can
+# fall back to the backend if the Cloudflare worker is not available.
+# ----------------------
+
+
+@chat_router.get('/chat/sessions')
+async def list_chat_sessions(current_user=Depends(get_current_user)):
+    """List chat sessions for the authenticated user (FastAPI fallback)."""
+    try:
+        if mongo_db is None:
+            return []
+        # get user identifier from dependency (dev auth provides email)
+        user_identifier = getattr(current_user, 'email', None) or getattr(current_user, 'user_id', None) or current_user
+        cursor = mongo_db.chat_sessions.find({'user_id': user_identifier}).sort('updated_at', -1)
+        results = []
+        async for doc in cursor:
+            doc['id'] = doc.get('id') or str(doc.get('_id'))
+            results.append({
+                'id': doc['id'],
+                'title': doc.get('title', 'New Chat'),
+                'is_pinned': bool(doc.get('is_pinned', False)),
+                'is_saved': bool(doc.get('is_saved', False)),
+                'updated_at': doc.get('updated_at')
+            })
+        return results
+    except Exception as e:
+        logger.exception(f"Error listing chat sessions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@chat_router.post('/chat/sessions')
+async def create_chat_session(current_user=Depends(get_current_user)):
+    """Create a new chat session for the authenticated user."""
+    try:
+        # If MongoDB wasn't initialized at startup, try to initialize now (best-effort)
+        global mongo_db
+        if mongo_db is None:
+            init_ok = await auth_db_module.init_mongodb()
+            mongo_db = auth_db_module.db
+            if mongo_db is None or not init_ok:
+                raise HTTPException(status_code=503, detail='MongoDB not initialized')
+        session_id = str(uuid4())
+        user_identifier = getattr(current_user, 'email', None) or getattr(current_user, 'user_id', None) or current_user
+        payload = {
+            'id': session_id,
+            'session_id': session_id,
+            'user_id': user_identifier,
+            'title': 'New Chat',
+            'is_pinned': False,
+            'is_saved': False,
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow(),
+        }
+        await mongo_db.chat_sessions.insert_one(payload)
+        return {'id': session_id, 'title': payload['title']}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error creating chat session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@chat_router.put('/chat/sessions/{session_id}')
+async def update_chat_session(session_id: str, body: dict, current_user=Depends(get_current_user)):
+    """Update session metadata (title, is_pinned, is_saved)."""
+    try:
+        # Best-effort: try to initialize MongoDB if missing
+        global mongo_db
+        if mongo_db is None:
+            init_ok = await auth_db_module.init_mongodb()
+            mongo_db = auth_db_module.db
+            if mongo_db is None or not init_ok:
+                raise HTTPException(status_code=503, detail='MongoDB not initialized')
+        user_identifier = getattr(current_user, 'email', None) or getattr(current_user, 'user_id', None) or current_user
+        update = {}
+        for k in ('title', 'is_pinned', 'is_saved'):
+            if k in body:
+                update[k] = body[k]
+        if update:
+            update['updated_at'] = datetime.utcnow()
+            await mongo_db.chat_sessions.update_one({'id': session_id, 'user_id': user_identifier}, {'$set': update})
+        return {'success': True}
+    except Exception as e:
+        logger.exception(f"Error updating chat session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@chat_router.delete('/chat/sessions/{session_id}')
+async def delete_chat_session(session_id: str, current_user=Depends(get_current_user)):
+    """Delete a session and its messages."""
+    try:
+        # Best-effort: try to initialize MongoDB if missing
+        global mongo_db
+        if mongo_db is None:
+            init_ok = await auth_db_module.init_mongodb()
+            mongo_db = auth_db_module.db
+            if mongo_db is None or not init_ok:
+                raise HTTPException(status_code=503, detail='MongoDB not initialized')
+        user_identifier = getattr(current_user, 'email', None) or getattr(current_user, 'user_id', None) or current_user
+        await mongo_db.chat_messages.delete_many({'session_id': session_id, 'user_id': user_identifier})
+        await mongo_db.chat_sessions.delete_one({'id': session_id, 'user_id': user_identifier})
+        return {'success': True}
+    except Exception as e:
+        logger.exception(f"Error deleting chat session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@chat_router.get('/chat/sessions/{session_id}/messages')
+async def list_session_messages(session_id: str, current_user=Depends(get_current_user)):
+    try:
+        # If mongo is not available, attempt init; otherwise return empty
+        global mongo_db
+        if mongo_db is None:
+            init_ok = await auth_db_module.init_mongodb()
+            mongo_db = auth_db_module.db
+            if mongo_db is None or not init_ok:
+                return []
+        user_identifier = getattr(current_user, 'email', None) or getattr(current_user, 'user_id', None) or current_user
+        cursor = mongo_db.chat_messages.find({'session_id': session_id, 'user_id': user_identifier}).sort('created_at', 1)
+        results = []
+        async for doc in cursor:
+            doc['id'] = doc.get('id') or str(doc.get('_id'))
+            results.append({
+                'id': doc['id'],
+                'content': doc.get('content'),
+                'message_type': doc.get('message_type'),
+                'created_at': doc.get('created_at')
+            })
+        return results
+    except Exception as e:
+        logger.exception(f"Error listing session messages: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@chat_router.post('/chat/sessions/{session_id}/messages')
+async def add_session_message(session_id: str, body: dict, current_user=Depends(get_current_user)):
+    try:
+        # Try to initialize MongoDB if missing
+        global mongo_db
+        if mongo_db is None:
+            init_ok = await auth_db_module.init_mongodb()
+            mongo_db = auth_db_module.db
+            if mongo_db is None or not init_ok:
+                raise HTTPException(status_code=503, detail='MongoDB not initialized')
+        message_id = str(uuid4())
+        user_identifier = getattr(current_user, 'email', None) or getattr(current_user, 'user_id', None) or current_user
+        payload = {
+            'id': message_id,
+            'session_id': session_id,
+            'user_id': current_user if isinstance(current_user, str) else user_identifier,
+            'content': body.get('content'),
+            'message_type': body.get('message_type', 'user'),
+            'attachments': body.get('attachments', []),
+            'metadata': body.get('metadata', {}),
+            'created_at': datetime.utcnow()
+        }
+        await mongo_db.chat_messages.insert_one(payload)
+        # update session timestamp
+        await mongo_db.chat_sessions.update_one({'id': session_id, 'user_id': user_identifier}, {'$set': {'updated_at': datetime.utcnow()}})
+        return {'id': message_id}
+    except Exception as e:
+        logger.exception(f"Error adding session message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @chat_router.post("/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest):
